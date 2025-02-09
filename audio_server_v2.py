@@ -5,6 +5,44 @@ import os
 import protocol
 
 
+def get_ogg_duration(file_path):
+    with open(file_path, 'rb') as f:
+        last_granule_pos = 0
+        while True:
+            # Read the Ogg header (27 bytes minimum) plus segment table
+            header = f.read(27)
+            if len(header) < 27:
+                break  # End of file
+
+            if not header.startswith(b'OggS'):
+                # Not a valid OGG page; you may want to search for the next OggS or break
+                break
+
+            # Extract the number of segments:
+            page_segments = header[26]
+            segment_table = f.read(page_segments)
+            if len(segment_table) < page_segments:
+                break  # Incomplete segment table -> broken file?
+
+            # The granule position is 8 bytes, starting at offset 6 in the header
+            # header[6:14] is the little-endian 64-bit granule position
+            granule_bytes = header[6:14]
+            granule_pos = int.from_bytes(granule_bytes, byteorder='little', signed=False)
+
+            # Move forward by the sum of segment_table to skip the page’s packet data
+            page_size = sum(segment_table)
+            f.seek(page_size, 1)  # relative seek
+
+            # Update last granule position
+            last_granule_pos = granule_pos
+
+        # For Vorbis, the sample rate is usually 44,100. For Opus, 48,000 or dynamic.
+        # You'll have to parse the stream headers or assume a known sample rate.
+        sample_rate = 48000
+        total_duration_seconds = last_granule_pos / sample_rate
+        return total_duration_seconds
+
+
 class OggServer:
     """
     A simple server that streams OGG pages from a local file to a connected client.
@@ -60,7 +98,10 @@ class OggServer:
             buffer = bytearray()
             content = f.read()
             print('page num: ', )
-            conn.sendall(protocol.create_msg("PGNM", str(content.count(b'OggS')).encode()))
+            msg = protocol.create_msg("PGNM", f"{str(content.count(b'OggS'))}~{str(get_ogg_duration(song_name))}"
+                                              f"".encode())
+            conn.sendall(msg)
+            print('...', msg)
 
             f.seek(0)
 
