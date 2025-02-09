@@ -3,46 +3,35 @@ import time
 import threading
 import os
 import protocol
+import pyogg
 
 
-def get_ogg_duration(file_path):
-    with open(file_path, 'rb') as f:
-        last_granule_pos = 0
-        while True:
-            # Read the Ogg header (27 bytes minimum) plus segment table
-            header = f.read(27)
-            if len(header) < 27:
-                break  # End of file
+def get_ogg_duration(file_path: str) -> float:
+    """
+    Returns the duration (in seconds) of an Ogg Vorbis file
+    using PyOgg, without relying on .length().
+    """
+    vorbis_file = pyogg.VorbisFile(file_path)
+    data = vorbis_file.buffer
+    sample_rate = vorbis_file.frequency
+    num_channels = vorbis_file.channels
 
-            if not header.startswith(b'OggS'):
-                # Not a valid OGG page; you may want to search for the next OggS or break
-                break
+    # Total bytes of decoded PCM
+    total_bytes = len(data)
 
-            # Extract the number of segments:
-            page_segments = header[26]
-            segment_table = f.read(page_segments)
-            if len(segment_table) < page_segments:
-                break  # Incomplete segment table -> broken file?
+    # Each sample is 2 bytes (16-bit)
+    bytes_per_sample = 2
 
-            # The granule position is 8 bytes, starting at offset 6 in the header
-            # header[6:14] is the little-endian 64-bit granule position
-            granule_bytes = header[6:14]
-            granule_pos = int.from_bytes(granule_bytes, byteorder='little', signed=False)
+    # For stereo, each 'frame' has (channels) samples
+    # e.g. stereo => 2 samples per frame.
 
-            # Move forward by the sum of segment_table to skip the page’s packet data
-            page_size = sum(segment_table)
-            f.seek(page_size, 1)  # relative seek
+    # Number of total frames in the audio
+    num_frames = total_bytes // (bytes_per_sample * num_channels)
 
-            # Update last granule position
-            last_granule_pos = granule_pos
+    # Duration = frames / sample_rate
+    duration_seconds = num_frames / float(sample_rate)
 
-        # For Vorbis, the sample rate is usually 44,100. For Opus, 48,000 or dynamic.
-        # You'll have to parse the stream headers or assume a known sample rate.
-        sample_rate = 48000
-        total_duration_seconds = last_granule_pos / sample_rate
-        return total_duration_seconds
-
-
+    return duration_seconds
 class OggServer:
     """
     A simple server that streams OGG pages from a local file to a connected client.
@@ -50,7 +39,7 @@ class OggServer:
     with an optional delay to simulate network latency.
     """
 
-    def __init__(self, host='0.0.0.0', port=5000, chunk_size=8192, delay=1):
+    def __init__(self, host='0.0.0.0', port=5000, chunk_size=8192, delay=0):
         """
         Initialize the OggServer with file, network, and streaming parameters.
 
@@ -84,8 +73,8 @@ class OggServer:
             self.threads.append(handle_client_thread)
 
     def handle_client(self, conn):
-        song_name = conn.recv(1024)
-        print(f"Client requested song: {song_name.decode()}")
+        song_name = conn.recv(1024).decode()
+        print(f"Client requested song: {song_name}")
         if not os.path.exists(song_name):
             print("File not found. cant stream")
             conn.sendall(protocol.create_msg("PGNM", b"0"))
@@ -146,5 +135,5 @@ class OggServer:
 
 if __name__ == "__main__":
     # Example usage: create an OggServer and start it.
-    server = OggServer(host='0.0.0.0', port=5000, chunk_size=8192, delay=1)
+    server = OggServer(host='0.0.0.0', port=5000, chunk_size=8192, delay=0)
     server.start_server()
