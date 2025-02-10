@@ -1,6 +1,6 @@
 import socket
 
-COMMANDS = ['PGNM']
+COMMANDS = ['PGNM', 'RQST']
 LENGTH_HEADER = 4
 CMD_HEADER = 4
 
@@ -25,4 +25,4 @@ def get_msg(other_socket):
         data = other_socket.recv(length)
         return cmd, data
     except ValueError as e:
-        return "ERR1", f"error recieving the information: {e}"
+        return "ERR1", f"error recieving the information: {e}".encode()

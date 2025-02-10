@@ -1,139 +1,282 @@
 import socket
-import time
 import threading
 import os
+import time
+
+import pyogg  # pip install pyogg
 import protocol
-import pyogg
+
+CHUNK_SIZE = 8192
+DELAY = 0  # artificial delay after sending each page (optional)
 
 
-def get_ogg_duration(file_path: str) -> float:
+def build_page_index(file_path):
     """
-    Returns the duration (in seconds) of an Ogg Vorbis file
-    using PyOgg, without relying on .length().
+    Returns a list of byte offsets for each OggS page in the file:
+      page_offsets[i] = byte_offset_of_page_i
+    """
+    page_offsets = []
+    with open(file_path, 'rb') as f:
+        offset = 0
+        while True:
+            header = f.read(27)
+            if len(header) < 27:
+                break
+            if not header.startswith(b"OggS"):
+                break
+
+            page_segments = header[26]
+            segment_table = f.read(page_segments)
+            if len(segment_table) < page_segments:
+                break
+
+            page_size = 27 + page_segments + sum(segment_table)
+
+            page_offsets.append(offset)
+
+            offset += page_size
+            f.seek(offset, 0)
+
+    return page_offsets
+
+
+def get_ogg_duration(file_path):
+    """
+    Returns the duration (in seconds) of an Ogg Vorbis file using PyOgg.
     """
     vorbis_file = pyogg.VorbisFile(file_path)
     data = vorbis_file.buffer
     sample_rate = vorbis_file.frequency
-    num_channels = vorbis_file.channels
+    channels = vorbis_file.channels
 
-    # Total bytes of decoded PCM
     total_bytes = len(data)
+    bytes_per_sample = 2  # 16-bit
+    samples_per_frame = channels
+    num_frames = total_bytes // (bytes_per_sample * samples_per_frame)
+    duration = num_frames / float(sample_rate)
+    return duration
 
-    # Each sample is 2 bytes (16-bit)
-    bytes_per_sample = 2
 
-    # For stereo, each 'frame' has (channels) samples
-    # e.g. stereo => 2 samples per frame.
+def extract_header_data_and_last_page(file_path):
+    """
+    Extract all Ogg pages at the start that contain the 3 Vorbis headers
+    (packets 0x01, 0x03, 0x05).
 
-    # Number of total frames in the audio
-    num_frames = total_bytes // (bytes_per_sample * num_channels)
+    Returns (header_data, last_header_page_index)
 
-    # Duration = frames / sample_rate
-    duration_seconds = num_frames / float(sample_rate)
+    'header_data' is the raw concatenation of the Ogg pages for those headers.
+    'last_header_page_index' is the highest page index that contains
+    any part of the 3rd header packet, so we know where the real audio begins.
 
-    return duration_seconds
+    We parse packets within each page:
+      - If we see packet type 0x01 (ID), 0x03 (comment), or 0x05 (setup),
+        we mark them found.
+      - Once all 3 are found, the next packet is likely audio.
+      - We note which Ogg page index we ended on.
+    """
+    needed = {0x01, 0x03, 0x05}
+    found = set()
+
+    header_data = bytearray()
+    last_header_page_idx = 0
+
+    page_index = 0
+    with open(file_path, "rb") as f:
+        buffer = bytearray()
+        done = False
+        while not done:
+            chunk = f.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            buffer.extend(chunk)
+
+            while True:
+                if b"OggS" not in buffer:
+                    break
+                idx = buffer.index(b"OggS")
+                if idx > 0:
+                    buffer = buffer[idx:]
+
+                if len(buffer) < 27:
+                    break
+                segs = buffer[26]
+                header_size = 27 + segs
+                if len(buffer) < header_size:
+                    break
+
+                seg_table = buffer[27:header_size]
+                page_size = 27 + len(seg_table) + sum(seg_table)
+                if len(buffer) < page_size:
+                    break
+
+                page = buffer[:page_size]
+                buffer = buffer[page_size:]
+
+                # Parse the packets in this page
+                # to detect if they contain ID(0x01), Comment(0x03), or Setup(0x05).
+                data_start = header_size
+                data_end = page_size
+                packet_data = bytearray()
+
+                for seg_len in seg_table:
+                    if data_start + seg_len > data_end:
+                        break
+                    packet_data.extend(page[data_start:(data_start + seg_len)])
+                    data_start += seg_len
+
+                    if seg_len < 255:
+                        # packet boundary
+                        if packet_data:
+                            # check first byte
+                            first_byte = packet_data[0]
+                            if first_byte in needed:
+                                found.add(first_byte)
+                        packet_data = bytearray()
+
+                # Append this entire page to header_data
+                header_data.extend(page)
+                # If we found at least one header packet here,
+                # update last_header_page_idx
+                if len(found) > 0:
+                    last_header_page_idx = page_index
+
+                # If we've found all 3, we can stop
+                if found == needed:
+                    done = True
+
+                page_index += 1
+
+    return bytes(header_data), last_header_page_idx
+
+
 class OggServer:
     """
-    A simple server that streams OGG pages from a local file to a connected client.
-    It reads the file in chunks, processes complete OGG pages, and sends them out
-    with an optional delay to simulate network latency.
+    A server that:
+      - Receives "RQST <song_name>~<page_num>"
+      - Builds the page index
+      - Finds all Vorbis headers & identifies last_header_page
+      - If page_num <= last_header_page: stream from offset=0 with NO re-injection
+      - Else re-inject header_data, then jump to that page offset
     """
 
-    def __init__(self, host='0.0.0.0', port=5000, chunk_size=8192, delay=0):
-        """
-        Initialize the OggServer with file, network, and streaming parameters.
-
-        :param host: Host/IP address on which the server will bind.
-        :param port: Port on which the server will listen for incoming connections.
-        :param chunk_size: The number of bytes to read from the file at a time.
-        :param delay: Delay (in seconds) to wait after sending each OGG page (simulates slow streaming).
-        """
+    def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.chunk_size = chunk_size
-        self.delay = delay
-        self.sock = None
-        self.threads = []
 
     def start_server(self):
-        """
-        Start listening for a single client connection and then stream the OGG file
-        in complete pages to the client.
-        """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind((self.host, self.port))
-        sock.listen()
+        serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        serv_sock.bind((self.host, self.port))
+        serv_sock.listen()
         print(f"Server listening on {self.host}:{self.port}...")
         while True:
-            conn, addr = sock.accept()
+            conn, addr = serv_sock.accept()
             print(f"Connection from {addr}")
-
-            handle_client_thread = threading.Thread(target=self.handle_client, args=(conn,))
-            handle_client_thread.start()
-            self.threads.append(handle_client_thread)
+            threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
 
     def handle_client(self, conn):
-        song_name = conn.recv(1024).decode()
-        print(f"Client requested song: {song_name}")
+        # 1) Read request
+        cmd, data = protocol.get_msg(conn)
+        if cmd != "RQST":
+            print("Expected RQST, got:", cmd)
+            conn.close()
+            return
+
+        parts = data.decode().split('~')
+        if len(parts) != 2:
+            print("Bad request format: must be 'song.ogg~page_num'")
+            conn.sendall(protocol.create_msg("ERR ", b"Bad request"))
+            conn.close()
+            return
+
+        song_name, page_str = parts
+        page_num = int(page_str)
+
         if not os.path.exists(song_name):
-            print("File not found. cant stream")
+            print(f"File not found: {song_name}")
             conn.sendall(protocol.create_msg("PGNM", b"0"))
             conn.close()
             return
 
-        print("File found. Streaming...")
+        # 2) Build page index
+        page_offsets = build_page_index(song_name)
+        total_pages = len(page_offsets)
+        print(f"'{song_name}' => total_pages={total_pages}")
 
-        with open(song_name, 'rb') as f:
+        if page_num >= total_pages:
+            err_msg = b"Requested page out of range"
+            conn.sendall(protocol.create_msg("ERR ", err_msg))
+            conn.close()
+            return
+
+        # 3) Extract headers + find last_header_page
+        header_data, last_header_page_idx = extract_header_data_and_last_page(song_name)
+        print(f"Extracted header pages up to page {last_header_page_idx}")
+
+        # 4) Compute total duration
+        duration = get_ogg_duration(song_name)
+
+        # 5) Send PGNM "<total_pages>~<duration>"
+        pgnm_data = f"{total_pages}~{duration}".encode()
+        conn.sendall(protocol.create_msg("PGNM", pgnm_data))
+        print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")
+
+        # 6) Decide how to stream:
+        # If page_num <= last_header_page_idx => no re-injection, just stream from offset=0
+        if page_num <= last_header_page_idx:
+            print(f"Page {page_num} <= last_header_page_idx={last_header_page_idx}, streaming from 0 (no injection).")
+            self.stream_from_offset(conn, song_name, 0)
+        else:
+            # Re-inject header_data, then jump to page_num
+            print(f"Page {page_num} > last_header_page_idx={last_header_page_idx}, re-injecting headers then offset.")
+            # 7) Send the Vorbis headers
+            conn.sendall(header_data)
+            # 8) Then stream from page_offsets[page_num]
+            offset = page_offsets[page_num]
+            print(f"Streaming from offset={offset}, page={page_num}")
+            self.stream_from_offset(conn, song_name, offset)
+
+        conn.close()
+
+    def stream_from_offset(self, conn, song_name, file_offset):
+        """
+        Streams Ogg pages from 'file_offset' to EOF in 8192 chunks,
+        reassembling complete pages and sending them to the client.
+        """
+        with open(song_name, "rb") as f:
+            f.seek(file_offset)
             buffer = bytearray()
-            content = f.read()
-            print('page num: ', )
-            msg = protocol.create_msg("PGNM", f"{str(content.count(b'OggS'))}~{str(get_ogg_duration(song_name))}"
-                                              f"".encode())
-            conn.sendall(msg)
-            print('...', msg)
-
-            f.seek(0)
-
-            while chunk := f.read(self.chunk_size):
-                # Accumulate data in the buffer
+            while True:
+                chunk = f.read(CHUNK_SIZE)
+                if not chunk:
+                    break
                 buffer.extend(chunk)
 
-                # Look for complete OGG pages and send them
                 while b"OggS" in buffer:
-                    index = buffer.index(b"OggS")
-                    if index > 0:
-                        # Discard any junk before "OggS"
-                        buffer = buffer[index:]
+                    idx = buffer.index(b"OggS")
+                    if idx > 0:
+                        buffer = buffer[idx:]
 
-                    # OGG header is at least 27 bytes (for capture pattern and header fields)
                     if len(buffer) < 27:
-                        break  # Wait for more data to get a full header
+                        break
+                    segs = buffer[26]
+                    header_size = 27 + segs
+                    if len(buffer) < header_size:
+                        break
 
-                    page_segments = buffer[26]  # Number of segments in this OGG page
-                    expected_header_size = 27 + page_segments  # 27-byte header + segment table
-
-                    if len(buffer) < expected_header_size:
-                        break  # Not enough data for the full header + segment table
-
-                    segment_table = buffer[27:expected_header_size]
-                    page_size = 27 + len(segment_table) + sum(segment_table)
+                    seg_table = buffer[27:header_size]
+                    page_size = 27 + len(seg_table) + sum(seg_table)
                     if len(buffer) < page_size:
-                        break  # Wait for the complete page
+                        break
 
-                    # We have a full OGG page. Send it to the client.
-                    page = buffer[:page_size]
-                    conn.sendall(page)
-                    # Remove the data that was just sent
+                    page_data = buffer[:page_size]
+                    conn.sendall(page_data)
                     buffer = buffer[page_size:]
 
-                    # Simulate streaming delay (if desired)
-                    time.sleep(self.delay)
+                    time.sleep(DELAY)
 
-        print("File transmission completed.")
-        conn.close()
+        print(f"Finished streaming from offset={file_offset}.")
 
 
 if __name__ == "__main__":
-    # Example usage: create an OggServer and start it.
-    server = OggServer(host='0.0.0.0', port=5000, chunk_size=8192, delay=0)
+    server = OggServer(host="0.0.0.0", port=5000)
     server.start_server()
