@@ -7,7 +7,7 @@ import pyogg  # pip install pyogg
 import protocol
 
 CHUNK_SIZE = 8192
-DELAY = 0  # artificial delay after sending each page (optional)
+DELAY = 1  # artificial delay after sending each page (optional)
 
 
 def build_page_index(file_path):

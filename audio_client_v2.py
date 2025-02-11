@@ -54,8 +54,9 @@ class AudioClient:
         """
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((self.host, self.port))
-
         req_str = f"{song_name}~{page_num}"
+        page_num = page_num - 2 if page_num >= 3 else 0
+        self.current_pages = page_num
         msg = protocol.create_msg("RQST", req_str.encode())
         s.sendall(msg)
         return s
@@ -86,7 +87,6 @@ class AudioClient:
         pages_str, dur_str = data.decode().split('~')
         self.total_pages = int(pages_str)
         self.total_duration = float(dur_str)
-        self.current_pages = 0
         print(f"Server responded with total_pages={self.total_pages}, duration={self.total_duration:.1f}s")
 
         # initialize ffmpeg

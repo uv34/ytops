@@ -112,7 +112,7 @@ class AudioClientApp(tk.Tk):
         self.after(0, self._update_playback, played_s, total_s)
 
     def _update_playback(self, played_s, total_s):
-        if total_s < 1: total_s = 1
+        total_s = 1 if total_s < 1 else total_s
         self.playback_bar["maximum"] = total_s
         self.playback_bar["value"] = played_s
         self.playback_label.config(text=f"{played_s:.1f} / {total_s:.1f} sec")
