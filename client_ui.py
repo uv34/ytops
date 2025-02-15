@@ -65,7 +65,7 @@ class AudioClientApp(tk.Tk):
         def run():
             try:
                 self.update_status("Connecting to server...")
-                sock = self.client.ask_for_song(song_name, page_num=page_num)
+                sock = self.client.ask_for_song(song_name, page_num)
                 self.update_status(f"Requesting {song_name}, page={page_num}")
                 self.client.receive_stream(sock)
                 self.update_status("Stream ended.")

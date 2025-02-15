@@ -30,6 +30,7 @@ class AudioClient:
         self.current_pages = 0
         self.played_time = 0.0
         self.total_duration = 0.0
+        self.sample_rate = 44100
 
         # callbacks
         self._progress_callback = None  # (current_pages, total_pages)
@@ -83,11 +84,13 @@ class AudioClient:
             print(f"Unexpected cmd={cmd}, data={data}")
             return
 
-        # parse e.g. "179~180.5"
-        pages_str, dur_str = data.decode().split('~')
+        # parse e.g. "179~180.5~20~44100"
+        pages_str, dur_str, cur_str, slr_str = data.decode().split('~')
         self.total_pages = int(pages_str)
         self.total_duration = float(dur_str)
-        print(f"Server responded with total_pages={self.total_pages}, duration={self.total_duration:.1f}s")
+        self.played_time = float(cur_str)
+        self.sample_rate = int(slr_str)
+        print(f"Server responded with {data}")
 
         # initialize ffmpeg
         ffmpeg_cmd = [
@@ -97,7 +100,7 @@ class AudioClient:
             "-f", "s16le",
             "-acodec", "pcm_s16le",
             "-ac", "2",
-            "-ar", "44100",
+            "-ar", slr_str,
             "pipe:1"
         ]
         self.ffmpeg_process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -139,6 +142,7 @@ class AudioClient:
                 self.ffmpeg_process.stdin.write(chunk)
                 self.ffmpeg_process.stdin.flush()
             except BrokenPipeError:
+                print('pipe error')
                 break
 
     def reader_thread_func(self):
@@ -156,8 +160,7 @@ class AudioClient:
         """
         Converts PCM to PyGame Sounds and plays them, tracking time.
         """
-        pygame.mixer.init(frequency=44100, size=-16, channels=2)
-        self.played_time = 0.0
+        pygame.mixer.init(frequency=self.sample_rate, size=-16, channels=2)
         bytes_per_frame = 4.0  # 16-bit * 2 channels
 
         while True:
@@ -175,7 +178,7 @@ class AudioClient:
 
             sound = self.pcm_chunk_to_sound(chunk)
             n_frames = len(chunk) / bytes_per_frame
-            duration_s = n_frames / 44100.0
+            duration_s = n_frames / self.sample_rate
 
             sound.play()
 

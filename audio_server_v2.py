@@ -2,12 +2,80 @@ import socket
 import threading
 import os
 import time
-
-import pyogg  # pip install pyogg
+import struct
+import pyogg
 import protocol
 
 CHUNK_SIZE = 8192
-DELAY = 1  # artificial delay after sending each page (optional)
+DELAY = 1  # artificial delay
+
+
+def get_granule_positions(file_path):
+    """
+    Extracts the granule positions of all Ogg pages in the file.
+    Returns a list of granule positions.
+    """
+    granule_positions = []
+    with open(file_path, 'rb') as f:
+        offset = 0
+        while True:
+            header = f.read(27)
+            if len(header) < 27:
+                break
+            if not header.startswith(b"OggS"):
+                break
+
+            # Extract granule position (bytes 6–13)
+            granule_pos_bytes = header[6:14]
+            granule_pos = struct.unpack('<Q', granule_pos_bytes)[0]  # Little-endian unsigned 64-bit
+
+            granule_positions.append(granule_pos)
+
+            # Move to the next page
+            page_segments = header[26]
+            segment_table = f.read(page_segments)
+            page_size = 27 + page_segments + sum(segment_table)
+            offset += page_size
+            f.seek(offset)
+
+    return granule_positions
+
+
+def get_sample_rate(file_path):
+    """
+    Uses PyOgg to extract the sample rate of the Ogg Vorbis file.
+    """
+    vorbis_file = pyogg.VorbisFile(file_path)
+    return vorbis_file.frequency
+
+
+def get_time_until_page(file_path, target_page_index):
+    """
+    Returns the total time (in seconds) from the start of the file
+    up to the specified page (target_page_index).
+
+    If target_page_index is 0, the output is 0 seconds.
+    If target_page_index exceeds the total number of pages, returns total duration.
+    """
+    granule_positions = get_granule_positions(file_path)
+    sample_rate = get_sample_rate(file_path)
+
+    total_pages = len(granule_positions)
+
+    if target_page_index <= 0:
+        return 0.0  # No time passed before the first page
+
+    if target_page_index >= total_pages:
+        # If the target page exceeds the total pages, return the total duration
+        total_samples = granule_positions[-1]
+        total_time = total_samples / sample_rate
+        return total_time
+
+    # The granule position of the target page represents the total samples up to that page
+    samples_up_to_page = granule_positions[target_page_index]
+    time_up_to_page = samples_up_to_page / sample_rate
+
+    return time_up_to_page
 
 
 def build_page_index(file_path):
@@ -214,9 +282,10 @@ class OggServer:
 
         # 4) Compute total duration
         duration = get_ogg_duration(song_name)
-
+        sample_rate = get_sample_rate(song_name)
+        current_time = get_time_until_page(song_name, page_num-1)
         # 5) Send PGNM "<total_pages>~<duration>"
-        pgnm_data = f"{total_pages}~{duration}".encode()
+        pgnm_data = f"{total_pages}~{duration}~{current_time}~{sample_rate}".encode()
         conn.sendall(protocol.create_msg("PGNM", pgnm_data))
         print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")
 
