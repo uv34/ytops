@@ -20,11 +20,11 @@ class AudioClientApp(tk.Tk):
         # Page
         tk.Label(self, text="Start Page:").grid(row=1, column=0, sticky='e', padx=5, pady=5)
         self.page_entry = tk.Entry(self)
-        self.page_entry.insert(0, "50")  # default = 50
+        self.page_entry.insert(0, "0")  # default = 0
         self.page_entry.grid(row=1, column=1, padx=5, pady=5)
 
         # Buttons
-        self.start_button = tk.Button(self, text="Start", command=self.start_stream)
+        self.start_button = tk.Button(self, text="Start/Stop", command=self.start_button)
         self.start_button.grid(row=2, column=0, sticky='e', padx=5, pady=5)
 
         self.pause_button = tk.Button(self, text="Pause/Resume", command=self.pause_stream, state=tk.DISABLED)
@@ -51,6 +51,12 @@ class AudioClientApp(tk.Tk):
         self.client = None
         self.stream_thread = None
 
+    def start_button(self):
+        if self.stream_thread and self.stream_thread.is_alive():
+            self.stop_stream()
+        else:
+            self.start_stream()
+
     def start_stream(self):
         if self.stream_thread and self.stream_thread.is_alive():
             messagebox.showinfo("Info", "Already streaming!")
@@ -74,7 +80,6 @@ class AudioClientApp(tk.Tk):
                 messagebox.showerror("Error", str(e))
                 self.update_status(f"Error: {e}")
             finally:
-                self.start_button.config(state=tk.NORMAL)
                 self.pause_button.config(state=tk.DISABLED)
 
         self.stream_thread = threading.Thread(target=run, daemon=True)
@@ -82,7 +87,6 @@ class AudioClientApp(tk.Tk):
 
         # UI updates
         self.update_status("Attempting to stream...")
-        self.start_button.config(state=tk.DISABLED)
         self.pause_button.config(state=tk.NORMAL)
 
         self.download_bar["value"] = 0
@@ -98,6 +102,13 @@ class AudioClientApp(tk.Tk):
             self.client.pause()
             new_state = "Paused" if not self.client.playing else "Resumed"
             self.update_status(new_state)
+
+    def stop_stream(self):
+        """Stop streaming and reset the UI."""
+        if self.client:
+            self.client.stop()
+        self.update_status("Stopped")
+        self.pause_button.config(state=tk.DISABLED)
 
     # Callbacks
     def on_download_progress(self, cur_pages, total_pages):

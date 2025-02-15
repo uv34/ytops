@@ -25,6 +25,7 @@ class AudioClient:
         self.done_flag = None
         self.ffmpeg_process = None
         self.playing = False
+        self.running = False
 
         self.total_pages = 0
         self.current_pages = 0
@@ -129,7 +130,8 @@ class AudioClient:
         Continuously recv Ogg data, count pages, feed ffmpeg.
         """
         self.playing = True
-        while True:
+        self.running = True
+        while self.running:
             chunk = client_socket.recv(self.chunk_size)
             if not chunk:
                 break
@@ -197,7 +199,47 @@ class AudioClient:
         return sndarray.make_sound(samples)
 
     # -------------
-    # Pause/Resume
+    # Controls
     # -------------
     def pause(self):
         self.playing = not self.playing
+
+    def stop(self):
+        """
+        Stops playback, closes connections, and terminates the ffmpeg process.
+        """
+        if not self.running:
+            return  # Already stopped
+
+        print("Stopping audio stream...")
+
+        self.running = False  # Stop streaming
+        self.playing = False  # Stop playback
+
+        # Signal the playback and reader threads to stop
+        if self.done_flag:
+            self.done_flag.set()
+
+        # Close the ffmpeg process safely
+        if self.ffmpeg_process:
+            try:
+                self.ffmpeg_process.stdin.close()
+                self.ffmpeg_process.terminate()
+                self.ffmpeg_process.wait()
+            except Exception as e:
+                print(f"Error terminating ffmpeg: {e}")
+
+        # Close the network socket
+        if self.client_socket:
+            try:
+                self.client_socket.shutdown(socket.SHUT_RDWR)
+                self.client_socket.close()
+            except Exception as e:
+                print(f"Error closing socket: {e}")
+
+        # Clear the audio queue to release resources
+        if self.audio_queue:
+            with self.audio_queue.mutex:
+                self.audio_queue.queue.clear()
+
+        print("Audio streaming stopped.")
