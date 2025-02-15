@@ -5,6 +5,7 @@ from tkinter import ttk, messagebox
 import threading
 from audio_client_v2 import AudioClient
 
+
 class AudioClientApp(tk.Tk):
     def __init__(self):
         super().__init__()
