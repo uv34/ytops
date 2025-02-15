@@ -4,6 +4,8 @@ import socket
 import subprocess
 import threading
 import queue
+import time
+
 import pygame
 import numpy as np
 from pygame import sndarray
@@ -20,6 +22,7 @@ class AudioClient:
         self.host = host
         self.port = port
         self.chunk_size = chunk_size
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.audio_queue = None
         self.done_flag = None
@@ -54,24 +57,22 @@ class AudioClient:
         Opens a socket, sends "RQST" with data = "song_name~page_num".
         Returns the connected socket if server is ready, or None if error.
         """
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.host, self.port))
+        self.sock.connect((self.host, self.port))
         req_str = f"{song_name}~{page_num}"
         page_num = page_num - 2 if page_num >= 3 else 0
         self.current_pages = page_num
         msg = protocol.create_msg("RQST", req_str.encode())
-        s.sendall(msg)
-        return s
+        self.sock.sendall(msg)
 
     # -------------
     # Decoding & Playback
     # -------------
-    def receive_stream(self, client_socket):
+    def receive_stream(self):
         """
         Reads either "ERR" or "PGNM" from server.
         If "PGNM", parse pages, duration, then start ffmpeg + streaming loop.
         """
-        cmd, data = protocol.get_msg(client_socket)
+        cmd, data = protocol.get_msg(self.sock)
         if not cmd:
             print("No command from server. Possibly disconnected.")
             return
@@ -117,7 +118,7 @@ class AudioClient:
         player_t.start()
 
         # read Ogg data from server -> ffmpeg
-        self.stream_loop(client_socket)
+        self.stream_loop(self.sock)
 
         # shutdown
         self.ffmpeg_process.stdin.close()
@@ -151,7 +152,8 @@ class AudioClient:
         """
         Reads raw PCM from ffmpeg stdout => audio_queue
         """
-        while True:
+        self.running = True
+        while self.running:
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
             if not pcm:
                 break
@@ -220,6 +222,15 @@ class AudioClient:
         if self.done_flag:
             self.done_flag.set()
 
+        # Close the network socket
+        if self.sock:
+            self.sock.sendall(protocol.create_msg("STOP", b"1"))
+            try:
+                time.sleep(0.1)  # wait for server to close connection
+                self.sock.close()
+            except Exception as e:
+                print(f"Error closing socket: {e}")
+
         # Close the ffmpeg process safely
         if self.ffmpeg_process:
             try:
@@ -228,14 +239,6 @@ class AudioClient:
                 self.ffmpeg_process.wait()
             except Exception as e:
                 print(f"Error terminating ffmpeg: {e}")
-
-        # Close the network socket
-        if self.client_socket:
-            try:
-                self.client_socket.shutdown(socket.SHUT_RDWR)
-                self.client_socket.close()
-            except Exception as e:
-                print(f"Error closing socket: {e}")
 
         # Clear the audio queue to release resources
         if self.audio_queue:

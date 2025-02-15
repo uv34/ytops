@@ -1,6 +1,6 @@
 import socket
 
-COMMANDS = ['PGNM', 'RQST']
+COMMANDS = ['PGNM', 'RQST', 'STOP', 'SCNF']
 LENGTH_HEADER = 4
 CMD_HEADER = 4
 

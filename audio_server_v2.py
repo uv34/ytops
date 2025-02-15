@@ -230,6 +230,7 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
+        self.stop_events = {}
 
     def start_server(self):
         serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -239,10 +240,13 @@ class OggServer:
         while True:
             conn, addr = serv_sock.accept()
             print(f"Connection from {addr}")
+            self.stop_events[conn] = threading.Event()
             threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
 
     def handle_client(self, conn):
+        stop_event = self.stop_events[conn]
         # 1) Read request
+
         cmd, data = protocol.get_msg(conn)
         if cmd != "RQST":
             print("Expected RQST, got:", cmd)
@@ -291,6 +295,10 @@ class OggServer:
 
         # 6) Decide how to stream:
         # If page_num <= last_header_page_idx => no re-injection, just stream from offset=0
+
+        stop_thread = threading.Thread(target=self.wait_for_stop, args=(conn, stop_event))
+        stop_thread.start()
+
         if page_num <= last_header_page_idx:
             print(f"Page {page_num} <= last_header_page_idx={last_header_page_idx}, streaming from 0 (no injection).")
             self.stream_from_offset(conn, song_name, 0)
@@ -304,6 +312,9 @@ class OggServer:
             print(f"Streaming from offset={offset}, page={page_num}")
             self.stream_from_offset(conn, song_name, offset)
 
+        stop_event.set()
+        stop_thread.join()
+        del self.stop_events[conn]
         conn.close()
 
     def stream_from_offset(self, conn, song_name, file_offset):
@@ -311,10 +322,11 @@ class OggServer:
         Streams Ogg pages from 'file_offset' to EOF in 8192 chunks,
         reassembling complete pages and sending them to the client.
         """
+
         with open(song_name, "rb") as f:
             f.seek(file_offset)
             buffer = bytearray()
-            while True:
+            while not self.stop_events[conn].is_set():
                 chunk = f.read(CHUNK_SIZE)
                 if not chunk:
                     break
@@ -338,12 +350,30 @@ class OggServer:
                         break
 
                     page_data = buffer[:page_size]
-                    conn.sendall(page_data)
+                    if not self.stop_events[conn].is_set():
+                        conn.sendall(page_data)
                     buffer = buffer[page_size:]
 
                     time.sleep(DELAY)
 
         print(f"Finished streaming from offset={file_offset}.")
+
+    def wait_for_stop(self, conn, stop_event):
+        """
+        Listens for a STOP command from the client.
+        If received, sets the stop event to terminate streaming.
+        """
+        while not stop_event.is_set():
+            try:
+                cmd, data = protocol.get_msg(conn)
+                if cmd == "STOP":
+                    print(f"Received STOP command from client.")
+                    stop_event.set()
+                    conn.close()
+                    break
+            except Exception as e:
+                print(f"Error receiving STOP command: {e}")
+                break
 
 
 if __name__ == "__main__":
