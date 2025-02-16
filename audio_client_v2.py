@@ -148,7 +148,7 @@ class AudioClient:
                 print('pipe error')
                 break
 
-    def reader_thread_func(self):
+    def reader_thread_func(self):  # TODO - fix - done_flag never sets
         """
         Reads raw PCM from ffmpeg stdout => audio_queue
         """
@@ -158,6 +158,7 @@ class AudioClient:
             if not pcm:
                 break
             self.audio_queue.put(pcm)
+        print('reader thread done')
         self.done_flag.set()
 
     def playback_thread_func(self):
@@ -193,6 +194,8 @@ class AudioClient:
             if self._time_callback:
                 self._time_callback(self.played_time, self.total_duration)
 
+        self.stop()
+        print('stopped playback')
         pygame.mixer.quit()
 
     def pcm_chunk_to_sound(self, pcm_chunk):

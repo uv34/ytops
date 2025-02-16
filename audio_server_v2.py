@@ -7,7 +7,7 @@ import pyogg
 import protocol
 
 CHUNK_SIZE = 8192
-DELAY = 1  # artificial delay
+DELAY = 0  # artificial delay
 
 
 def closest_index(sorted_list: list[float], target: float) -> int:
