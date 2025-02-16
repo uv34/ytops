@@ -108,6 +108,35 @@ def build_page_index(file_path):
     return page_offsets
 
 
+def build_time_index(file_path, total_pages):
+    """
+        TBA
+    """
+    granule_positions = get_granule_positions(file_path)
+    sample_rate = get_sample_rate(file_path)
+
+    total_pages = len(granule_positions)
+
+
+
+    page_times = []
+    for target_page_index in range(0, total_pages):
+        if target_page_index <= 0:
+            page_times.append(0.0)
+
+        if target_page_index >= total_pages:
+            total_samples = granule_positions[-1]
+            total_time = total_samples / sample_rate
+            page_times.append(total_time)
+
+        samples_up_to_page = granule_positions[target_page_index]
+        time_up_to_page = samples_up_to_page / sample_rate
+        page_times.append(time_up_to_page)
+
+    print(page_times)
+    return page_times
+
+
 def get_ogg_duration(file_path):
     """
     Returns the duration (in seconds) of an Ogg Vorbis file using PyOgg.
@@ -283,7 +312,7 @@ class OggServer:
         # 3) Extract headers + find last_header_page
         header_data, last_header_page_idx = extract_header_data_and_last_page(song_name)
         print(f"Extracted header pages up to page {last_header_page_idx}")
-
+        times = build_time_index(song_name, total_pages)
         # 4) Compute total duration
         duration = get_ogg_duration(song_name)
         sample_rate = get_sample_rate(song_name)
