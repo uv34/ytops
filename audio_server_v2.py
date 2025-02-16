@@ -10,6 +10,34 @@ CHUNK_SIZE = 8192
 DELAY = 1  # artificial delay
 
 
+def closest_index(sorted_list: list[float], target: float) -> int:
+    """
+    Finds the index of the closest number to the target in a sorted list.
+
+    Parameters:
+    sorted_list (list[float]): A list of floats sorted in ascending order.
+    target (float): The number to find the closest value to.
+
+    Returns:
+    int: The index of the closest number.
+    """
+    if not sorted_list:
+        raise ValueError("The list is empty")
+
+    closest_idx = 0
+    min_diff = abs(sorted_list[0] - target)
+
+    for i in range(1, len(sorted_list)):
+        diff = abs(sorted_list[i] - target)
+        if diff < min_diff:
+            min_diff = diff
+            closest_idx = i
+        elif diff > min_diff:
+            break
+
+    return closest_idx
+
+
 def get_granule_positions(file_path):
     """
     Extracts the granule positions of all Ogg pages in the file.
@@ -116,8 +144,6 @@ def build_time_index(file_path, total_pages):
     sample_rate = get_sample_rate(file_path)
 
     total_pages = len(granule_positions)
-
-
 
     page_times = []
     for target_page_index in range(0, total_pages):
@@ -289,8 +315,8 @@ class OggServer:
             conn.close()
             return
 
-        song_name, page_str = parts
-        page_num = int(page_str)
+        song_name, t_str = parts
+        asked_time = float(t_str)
 
         if not os.path.exists(song_name):
             print(f"File not found: {song_name}")
@@ -303,22 +329,26 @@ class OggServer:
         total_pages = len(page_offsets)
         print(f"'{song_name}' => total_pages={total_pages}")
 
-        if page_num >= total_pages:
-            err_msg = b"Requested page out of range"
-            conn.sendall(protocol.create_msg("ERR ", err_msg))
-            conn.close()
-            return
-
         # 3) Extract headers + find last_header_page
         header_data, last_header_page_idx = extract_header_data_and_last_page(song_name)
         print(f"Extracted header pages up to page {last_header_page_idx}")
         times = build_time_index(song_name, total_pages)
+
         # 4) Compute total duration
         duration = get_ogg_duration(song_name)
         sample_rate = get_sample_rate(song_name)
+        page_num = closest_index(times, asked_time)
         current_time = get_time_until_page(song_name, page_num-1)
+
+        if asked_time >= duration:
+            err_msg = b"Requested time out of range"
+            conn.sendall(protocol.create_msg("ERR ", err_msg))
+            conn.close()
+            return
+
         # 5) Send PGNM "<total_pages>~<duration>"
-        pgnm_data = f"{total_pages}~{duration}~{current_time}~{sample_rate}".encode()
+        real_page = 0 if page_num <= last_header_page_idx else page_num - 2
+        pgnm_data = f"{total_pages}~{duration}~{current_time}~{sample_rate}~{real_page}".encode()
         conn.sendall(protocol.create_msg("PGNM", pgnm_data))
         print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")
 

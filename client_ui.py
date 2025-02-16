@@ -18,10 +18,10 @@ class AudioClientApp(tk.Tk):
         self.song_entry.grid(row=0, column=1, padx=5, pady=5)
 
         # Page
-        tk.Label(self, text="Start Page:").grid(row=1, column=0, sticky='e', padx=5, pady=5)
-        self.page_entry = tk.Entry(self)
-        self.page_entry.insert(0, "0")  # default = 0
-        self.page_entry.grid(row=1, column=1, padx=5, pady=5)
+        tk.Label(self, text="Start Time:").grid(row=1, column=0, sticky='e', padx=5, pady=5)
+        self.time_entry = tk.Entry(self)
+        self.time_entry.insert(0, "0")  # default = 0
+        self.time_entry.grid(row=1, column=1, padx=5, pady=5)
 
         # Buttons
         self.start_button = tk.Button(self, text="Start/Stop", command=self.start_button)
@@ -63,7 +63,7 @@ class AudioClientApp(tk.Tk):
             return
 
         song_name = self.song_entry.get()
-        page_num = int(self.page_entry.get() or 0)
+        page_num = int(self.time_entry.get() or 0)
 
         self.client = AudioClient()
         self.client.set_progress_callback(self.on_download_progress)

@@ -52,15 +52,14 @@ class AudioClient:
     # -------------
     # Main request
     # -------------
-    def ask_for_song(self, song_name, page_num=0):
+    def ask_for_song(self, song_name, t=0.0):
         """
         Opens a socket, sends "RQST" with data = "song_name~page_num".
         Returns the connected socket if server is ready, or None if error.
         """
         self.sock.connect((self.host, self.port))
-        req_str = f"{song_name}~{page_num}"
-        page_num = page_num - 2 if page_num >= 3 else 0
-        self.current_pages = page_num
+        req_str = f"{song_name}~{t}"
+        t = t - 2 if t >= 3 else 0.0
         msg = protocol.create_msg("RQST", req_str.encode())
         self.sock.sendall(msg)
 
@@ -87,11 +86,12 @@ class AudioClient:
             return
 
         # parse e.g. "179~180.5~20~44100"
-        pages_str, dur_str, cur_str, slr_str = data.decode().split('~')
+        pages_str, dur_str, cur_str, slr_str, pgn_str = data.decode().split('~')
         self.total_pages = int(pages_str)
         self.total_duration = float(dur_str)
         self.played_time = float(cur_str)
         self.sample_rate = int(slr_str)
+        self.current_pages = int(pgn_str)
         print(f"Server responded with {data}")
 
         # initialize ffmpeg
