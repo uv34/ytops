@@ -5,6 +5,7 @@ import time
 import struct
 import pyogg
 import protocol
+import pickle
 
 CHUNK_SIZE = 8192
 DELAY = 0  # artificial delay
@@ -348,7 +349,9 @@ class OggServer:
 
         # 5) Send PGNM "<total_pages>~<duration>"
         real_page = 0 if page_num <= last_header_page_idx else page_num - 2
-        pgnm_data = f"{total_pages}~{duration}~{current_time}~{sample_rate}~{real_page}".encode()
+        # dumps contained ~ so i used |
+        pgnm_data = f"{total_pages}~{duration}~{current_time}~{sample_rate}~{real_page}|".encode() + pickle.dumps(times)
+        print('items:', pgnm_data.count(b'|'))
         conn.sendall(protocol.create_msg("PGNM", pgnm_data))
         print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")
 

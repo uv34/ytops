@@ -1,5 +1,3 @@
-# audio_client_seek.py
-
 import socket
 import subprocess
 import threading
@@ -10,6 +8,7 @@ import pygame
 import numpy as np
 from pygame import sndarray
 import protocol
+import pickle
 
 
 def is_pipe_empty(pipe):
@@ -41,6 +40,7 @@ class AudioClient:
         self.played_time = 0.0
         self.total_duration = 0.0
         self.sample_rate = 44100
+        self.times = []
 
         # callbacks
         self._progress_callback = None  # (current_pages, total_pages)
@@ -92,12 +92,19 @@ class AudioClient:
             return
 
         # parse e.g. "179~180.5~20~44100"
-        pages_str, dur_str, cur_str, slr_str, pgn_str = data.decode().split('~')
-        self.total_pages = int(pages_str)
-        self.total_duration = float(dur_str)
-        self.played_time = float(cur_str)
-        self.sample_rate = int(slr_str)
-        self.current_pages = int(pgn_str)
+        splited = data.split(b'|')
+        data1 = splited[0]
+        print(data1)
+        times_str = b'|'.join(splited[1:])
+        print(times_str)
+        pages_str, dur_str, cur_str, slr_str, pgn_str = data1.split(b'~')
+        self.total_pages = int(pages_str.decode())
+        self.total_duration = float(dur_str.decode())
+        self.played_time = float(cur_str.decode())
+        self.sample_rate = int(slr_str.decode())
+        self.current_pages = int(pgn_str.decode())
+        self.times = pickle.loads(times_str)
+        print(self.times)
         print(f"Server responded with {data}")
 
         # initialize ffmpeg

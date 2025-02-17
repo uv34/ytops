@@ -13,7 +13,8 @@ def create_msg(cmd: str, data: bytes):
     print(data)
     length = str(len(data)).zfill(LENGTH_HEADER)
     msg = length.encode() + cmd.encode() + data
-    print(msg)
+    if cmd != "PAGE":
+        print(msg)
     return msg
 
 
