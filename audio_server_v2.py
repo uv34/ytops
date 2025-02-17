@@ -374,8 +374,12 @@ class OggServer:
             print(f"Streaming from offset={offset}, page={page_num}")
             self.stream_from_offset(conn, song_name, offset)
 
+        conn.sendall(protocol.create_msg("SCNF", b"1"))
         stop_event.set()
         stop_thread.join()
+
+        conn.close()
+
         del self.stop_events[conn]
 
     def stream_from_offset(self, conn, song_name, file_offset):
@@ -416,9 +420,7 @@ class OggServer:
                     buffer = buffer[page_size:]
 
                     time.sleep(DELAY)
-        conn.sendall(protocol.create_msg("SCNF", b"1"))
-        self.stop_events[conn].set()
-        conn.close()
+
         print(f"Finished streaming from offset={file_offset}.")
 
     def wait_for_stop(self, conn, stop_event):
