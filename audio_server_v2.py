@@ -350,7 +350,7 @@ class OggServer:
         duration = get_ogg_duration(song_name)
         sample_rate = get_sample_rate(song_name)
         page_num = closest_index(times, asked_time)
-        current_time = get_time_until_page(song_name, page_num-1)
+        current_time = get_time_until_page(song_name, page_num)
 
         if asked_time >= duration:
             err_msg = b"Requested time out of range"
