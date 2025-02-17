@@ -77,6 +77,7 @@ class AudioClientApp(tk.Tk):
                 self.update_status(f"Requesting {song_name}, page={page_num}")
                 self.client.receive_stream()
                 self.update_status("Stream ended.")
+                self.client = None
             except Exception as e:
                 messagebox.showerror("Error", str(e))
                 self.update_status(f"Error: {e}")

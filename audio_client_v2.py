@@ -202,7 +202,6 @@ class AudioClient:
         bytes_per_frame = 4.0  # 16-bit * 2 channels
 
         while self.stop_flag is None or not self.stop_flag.is_set():
-            print(not self.running, self.audio_queue.empty(), self.done_flag.is_set())
             if not self.running and self.audio_queue.empty():
                 print('done flag set and audio queue empty')
                 break

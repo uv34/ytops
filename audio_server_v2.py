@@ -311,7 +311,7 @@ class OggServer:
 
         parts = data.decode().split('~')
         if len(parts) != 2:
-            print("Bad request format: must be 'song.ogg~page_num'")
+            print("Bad request format: must be 'song.ogg~time'")
             conn.sendall(protocol.create_msg("ERR ", b"Bad request"))
             conn.close()
             return
@@ -321,7 +321,7 @@ class OggServer:
 
         if not os.path.exists(song_name):
             print(f"File not found: {song_name}")
-            conn.sendall(protocol.create_msg("PGNM", b"0"))
+            conn.sendall(protocol.create_msg("ERR ", b"Song does not exist"))
             conn.close()
             return
 
