@@ -140,6 +140,7 @@ class AudioClient:
         self.ffmpeg_process.wait()
         reader_t.join()
         player_t.join()
+        print('back to noraml', self.running, self.playing)
 
     def stream_loop(self, client_socket):
         """
@@ -156,8 +157,11 @@ class AudioClient:
                 # Signal the playback and reader threads to stop
                 if self.done_flag:
                     self.done_flag.set()
+                    print('done flag set')
                 if self.stop_flag:
                     self.stop_flag.set()
+                    print('stop flag set')
+
                 break
             else:
                 if not chunk:
@@ -198,6 +202,7 @@ class AudioClient:
         bytes_per_frame = 4.0  # 16-bit * 2 channels
 
         while self.stop_flag is None or not self.stop_flag.is_set():
+            print(self.running, self.audio_queue.empty(), self.done_flag.is_set())
             if not self.running and self.audio_queue.empty():
                 print('done flag set and audio queue empty')
                 break
@@ -223,6 +228,8 @@ class AudioClient:
             self.played_time += duration_s
             if self._time_callback:
                 self._time_callback(self.played_time, self.total_duration)
+        while not self.stop_flag.is_set():
+            time.sleep(0.1)
 
         self.real_stop()
         print('stopped playback')
@@ -256,6 +263,7 @@ class AudioClient:
         """
         Stops playback, closes connections, and terminates the ffmpeg process.
         """
+        self.playing = False
         if self.sock:
             try:
                 self.sock.close()
@@ -270,10 +278,5 @@ class AudioClient:
                 self.ffmpeg_process.wait()
             except Exception as e:
                 print(f"Error terminating ffmpeg: {e}")
-
-        # Clear the audio queue to release resources
-        if self.audio_queue:
-            with self.audio_queue.mutex:
-                self.audio_queue.queue.clear()
 
         print("Audio streaming stopped.")

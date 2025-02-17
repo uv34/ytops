@@ -377,7 +377,6 @@ class OggServer:
         stop_event.set()
         stop_thread.join()
         del self.stop_events[conn]
-        conn.close()
 
     def stream_from_offset(self, conn, song_name, file_offset):
         """
@@ -418,6 +417,7 @@ class OggServer:
 
                     time.sleep(DELAY)
         conn.sendall(protocol.create_msg("SCNF", b"1"))
+        self.stop_events[conn].set()
         conn.close()
         print(f"Finished streaming from offset={file_offset}.")
 

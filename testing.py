@@ -18,10 +18,10 @@ class AudioClientApp(tk.Tk):
         self.song_entry.grid(row=0, column=1, padx=5, pady=5)
 
         # Page
-        tk.Label(self, text="Start Page:").grid(row=1, column=0, sticky='e', padx=5, pady=5)
-        self.page_entry = tk.Entry(self)
-        self.page_entry.insert(0, "0")  # default = 0
-        self.page_entry.grid(row=1, column=1, padx=5, pady=5)
+        tk.Label(self, text="Start Time:").grid(row=1, column=0, sticky='e', padx=5, pady=5)
+        self.time_entry = tk.Entry(self)
+        self.time_entry.insert(0, "0")  # default = 0
+        self.time_entry.grid(row=1, column=1, padx=5, pady=5)
 
         # Buttons
         self.start_button = tk.Button(self, text="Start/Stop", command=self.start_button)
@@ -34,7 +34,7 @@ class AudioClientApp(tk.Tk):
         tk.Label(self, text="Download progress:").grid(row=3, column=0, sticky='e', padx=5, pady=5)
         self.download_bar = ttk.Progressbar(self, orient="horizontal", length=200, mode="determinate")
         self.download_bar.grid(row=3, column=1, sticky='w', padx=5, pady=5)
-        self.download_label = tk.Label(self, text="0 / 0 pages")
+        self.download_label = tk.Label(self, text="0 / 0.0 sec")
         self.download_label.grid(row=4, column=0, columnspan=2)
 
         # Playback progress
@@ -52,10 +52,11 @@ class AudioClientApp(tk.Tk):
         self.stream_thread = None
 
     def start_button(self):
-        if self.stream_thread and self.stream_thread.is_alive():
-            self.stop_stream()
-        else:
-            self.start_stream()
+        if self.client:
+            if self.client.running or self.client.playing:
+                self.stop_stream()
+                return
+        self.start_stream()
 
     def start_stream(self):
         if self.stream_thread and self.stream_thread.is_alive():
@@ -63,7 +64,7 @@ class AudioClientApp(tk.Tk):
             return
 
         song_name = self.song_entry.get()
-        page_num = int(self.page_entry.get() or 0)
+        page_num = int(self.time_entry.get() or 0)
 
         self.client = AudioClient()
         self.client.set_progress_callback(self.on_download_progress)
@@ -91,7 +92,7 @@ class AudioClientApp(tk.Tk):
 
         self.download_bar["value"] = 0
         self.download_bar["maximum"] = 1
-        self.download_label.config(text="0 / ? pages")
+        self.download_label.config(text="0 / ? sec")
 
         self.playback_bar["value"] = 0
         self.playback_bar["maximum"] = 1
@@ -111,14 +112,14 @@ class AudioClientApp(tk.Tk):
         self.pause_button.config(state=tk.DISABLED)
 
     # Callbacks
-    def on_download_progress(self, cur_pages, total_pages):
-        self.after(0, self._update_download, cur_pages, total_pages)
+    def on_download_progress(self, cur_pages, duration):
+        self.after(0, self._update_download, self.client.times[cur_pages], duration)
 
     def _update_download(self, c, t):
         if t < 1: t = 1
         self.download_bar["maximum"] = t
         self.download_bar["value"] = c
-        self.download_label.config(text=f"{c} / {t} pages")
+        self.download_label.config(text=f"{c:.1f} / {t:.1f} sec")
 
     def on_playback_time(self, played_s, total_s):
         self.after(0, self._update_playback, played_s, total_s)
