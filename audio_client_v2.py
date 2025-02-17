@@ -30,7 +30,8 @@ class AudioClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.audio_queue = None
-        self.done_flag = None
+        self.done_flag = None  # stopped reading
+        self.stop_flag = None  # stopped everything
         self.ffmpeg_process = None
         self.playing = False
         self.running = False
@@ -43,7 +44,7 @@ class AudioClient:
         self.times = []
 
         # callbacks
-        self._progress_callback = None  # (current_pages, total_pages)
+        self._progress_callback = None  # (current_pages, duration)
         self._time_callback = None      # (played_time, total_duration)
 
     # -------------
@@ -122,6 +123,7 @@ class AudioClient:
 
         self.audio_queue = queue.Queue()
         self.done_flag = threading.Event()
+        self.stop_flag = threading.Event()
 
         # spawn threads
         reader_t = threading.Thread(target=self.reader_thread_func, daemon=True)
@@ -147,21 +149,32 @@ class AudioClient:
         self.running = True
         while self.running:
             cmd, chunk = protocol.get_msg(client_socket)
-            if not chunk:
+            if cmd == "SCNF":
+                print("Server confirmed stop")
+                self.running = False
+                self.audio_queue.queue.clear()  # Clear the audio queue
+                # Signal the playback and reader threads to stop
+                if self.done_flag:
+                    self.done_flag.set()
+                if self.stop_flag:
+                    self.stop_flag.set()
                 break
-            page_count = chunk.count(b"OggS")
-            self.current_pages += page_count
-            if self._progress_callback:
-                self._progress_callback(self.current_pages, self.total_pages)
+            else:
+                if not chunk:
+                    break
+                page_count = chunk.count(b"OggS")
+                self.current_pages += page_count
+                if self._progress_callback:
+                    self._progress_callback(self.current_pages, self.total_duration)
 
-            try:
-                self.ffmpeg_process.stdin.write(chunk)
-                self.ffmpeg_process.stdin.flush()
-            except BrokenPipeError:
-                print('pipe error')
-                break
+                try:
+                    self.ffmpeg_process.stdin.write(chunk)
+                    self.ffmpeg_process.stdin.flush()
+                except BrokenPipeError:
+                    print('pipe error')
+                    break
 
-    def reader_thread_func(self):  # TODO - fix - done_flag never sets
+    def reader_thread_func(self):
         """
         Reads raw PCM from ffmpeg stdout => audio_queue
         """
@@ -174,6 +187,7 @@ class AudioClient:
                 break
             self.audio_queue.put(pcm)
         print('reader thread done')
+
         self.running = False
 
     def playback_thread_func(self):
@@ -183,7 +197,7 @@ class AudioClient:
         pygame.mixer.init(frequency=self.sample_rate, size=-16, channels=2)
         bytes_per_frame = 4.0  # 16-bit * 2 channels
 
-        while True:
+        while self.stop_flag is None or not self.stop_flag.is_set():
             if not self.running and self.audio_queue.empty():
                 print('done flag set and audio queue empty')
                 break
@@ -210,7 +224,7 @@ class AudioClient:
             if self._time_callback:
                 self._time_callback(self.played_time, self.total_duration)
 
-        self.stop()
+        self.real_stop()
         print('stopped playback')
         pygame.mixer.quit()
 
@@ -227,23 +241,23 @@ class AudioClient:
 
     def stop(self):
         """
-        Stops playback, closes connections, and terminates the ffmpeg process.
+        asks to stop
         """
 
         print("Stopping audio stream...")
 
-        self.running = False  # Stop streaming
         self.playing = False  # Stop playback
-
-        # Signal the playback and reader threads to stop
-        if self.done_flag:
-            self.done_flag.set()
 
         # Close the network socket
         if self.sock:
             self.sock.sendall(protocol.create_msg("STOP", b"1"))
+
+    def real_stop(self):
+        """
+        Stops playback, closes connections, and terminates the ffmpeg process.
+        """
+        if self.sock:
             try:
-                time.sleep(0.1)  # wait for server to close connection
                 self.sock.close()
             except Exception as e:
                 print(f"Error closing socket: {e}")

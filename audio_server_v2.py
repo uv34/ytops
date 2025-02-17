@@ -8,7 +8,7 @@ import protocol
 import pickle
 
 CHUNK_SIZE = 8192
-DELAY = 0  # artificial delay
+DELAY = 1  # artificial delay
 
 
 def closest_index(sorted_list: list[float], target: float) -> int:
@@ -417,7 +417,8 @@ class OggServer:
                     buffer = buffer[page_size:]
 
                     time.sleep(DELAY)
-        conn.sendall(protocol.create_msg("SCNF", b""))
+        conn.sendall(protocol.create_msg("SCNF", b"1"))
+        conn.close()
         print(f"Finished streaming from offset={file_offset}.")
 
     def wait_for_stop(self, conn, stop_event):
@@ -431,7 +432,7 @@ class OggServer:
                 if cmd == "STOP":
                     print(f"Received STOP command from client.")
                     stop_event.set()
-                    conn.close()
+
                     break
             except Exception as e:
                 print(f"Error receiving STOP command: {e}")

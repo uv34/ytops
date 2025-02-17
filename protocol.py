@@ -21,6 +21,7 @@ def create_msg(cmd: str, data: bytes):
 def get_msg(other_socket):
     try:
         length = other_socket.recv(LENGTH_HEADER)
+        print("length", length)
         length = int(length.decode())
         cmd = other_socket.recv(CMD_HEADER).decode()
         data = other_socket.recv(length)
