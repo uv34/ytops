@@ -5,11 +5,17 @@ import subprocess
 import threading
 import queue
 import time
-
+import select
 import pygame
 import numpy as np
 from pygame import sndarray
 import protocol
+
+
+def is_pipe_empty(pipe):
+    """Returns True if the pipe (stdout) is empty, False if data is available."""
+    rlist, _, _ = select.select([pipe], [], [], 0)  # Non-blocking check
+    return not bool(rlist)  # True if empty, False if data is available
 
 
 class AudioClient:
@@ -133,7 +139,7 @@ class AudioClient:
         self.playing = True
         self.running = True
         while self.running:
-            chunk = client_socket.recv(self.chunk_size)
+            cmd, chunk = protocol.get_msg(client_socket)
             if not chunk:
                 break
             page_count = chunk.count(b"OggS")
@@ -154,12 +160,14 @@ class AudioClient:
         """
         self.running = True
         while self.running:
+            if self.done_flag.is_set() and is_pipe_empty(self.ffmpeg_process.stdout):
+                break
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
             if not pcm:
                 break
             self.audio_queue.put(pcm)
         print('reader thread done')
-        self.done_flag.set()
+        self.running = False
 
     def playback_thread_func(self):
         """
@@ -169,7 +177,8 @@ class AudioClient:
         bytes_per_frame = 4.0  # 16-bit * 2 channels
 
         while True:
-            if self.done_flag.is_set() and self.audio_queue.empty():
+            if not self.running and self.audio_queue.empty():
+                print('done flag set and audio queue empty')
                 break
 
             if not self.playing:
@@ -213,8 +222,6 @@ class AudioClient:
         """
         Stops playback, closes connections, and terminates the ffmpeg process.
         """
-        if not self.running:
-            return  # Already stopped
 
         print("Stopping audio stream...")
 

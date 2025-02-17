@@ -365,7 +365,7 @@ class OggServer:
             # Re-inject header_data, then jump to page_num
             print(f"Page {page_num} > last_header_page_idx={last_header_page_idx}, re-injecting headers then offset.")
             # 7) Send the Vorbis headers
-            conn.sendall(header_data)
+            conn.sendall(protocol.create_msg("PAGE", header_data))
             # 8) Then stream from page_offsets[page_num]
             offset = page_offsets[page_num]
             print(f"Streaming from offset={offset}, page={page_num}")
@@ -410,11 +410,11 @@ class OggServer:
 
                     page_data = buffer[:page_size]
                     if not self.stop_events[conn].is_set():
-                        conn.sendall(page_data)
+                        conn.sendall(protocol.create_msg("PAGE", page_data))
                     buffer = buffer[page_size:]
 
                     time.sleep(DELAY)
-
+        conn.sendall(protocol.create_msg("SCNF", b""))
         print(f"Finished streaming from offset={file_offset}.")
 
     def wait_for_stop(self, conn, stop_event):
