@@ -53,7 +53,7 @@ class AudioClientApp(tk.Tk):
 
     def start_button(self):
         if self.client:
-            if not self.client.stop_flag.is_set():
+            if self.stream_thread:
                 self.stop_stream()
                 return
         self.start_stream()

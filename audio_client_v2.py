@@ -11,16 +11,10 @@ import protocol
 import pickle
 
 
-def is_pipe_empty(pipe):
-    """Returns True if the pipe (stdout) is empty, False if data is available."""
-    rlist, _, _ = select.select([pipe], [], [], 0)  # Non-blocking check
-    return not bool(rlist)  # True if empty, False if data is available
-
-
 class AudioClient:
     """
-    A client that requests "song_name~page_num" from server,
-    then decodes Ogg data from that page onward using ffmpeg + pygame.
+    A client that requests "song_name~time" from server,
+    then decodes Ogg data from that time onward using ffmpeg + pygame.
     """
 
     def __init__(self, host='127.0.0.1', port=5000, chunk_size=8192):
@@ -30,8 +24,7 @@ class AudioClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.audio_queue = None
-        self.done_flag = None  # stopped reading
-        self.stop_flag = None  # stopped everything
+        self.done_flag = None  # stopped receiving from server
         self.ffmpeg_process = None
         self.playing = False
         self.running = False
@@ -59,14 +52,12 @@ class AudioClient:
     # -------------
     # Main request
     # -------------
-    def ask_for_song(self, song_name, t=0.0):
+    def ask_for_song(self, song_name: str, t: float):
         """
-        Opens a socket, sends "RQST" with data = "song_name~page_num".
-        Returns the connected socket if server is ready, or None if error.
+        connects to the server, sends "RQST" with data = "song_name~t".
         """
         self.sock.connect((self.host, self.port))
         req_str = f"{song_name}~{t}"
-        t = t - 2 if t >= 3 else 0.0
         msg = protocol.create_msg("RQST", req_str.encode())
         self.sock.sendall(msg)
 
@@ -76,7 +67,7 @@ class AudioClient:
     def receive_stream(self):
         """
         Reads either "ERR" or "PGNM" from server.
-        If "PGNM", parse pages, duration, then start ffmpeg + streaming loop.
+        If "PGNM", parse data, then start ffmpeg + streaming loop.
         """
         cmd, data = protocol.get_msg(self.sock)
         if not cmd:
@@ -92,12 +83,10 @@ class AudioClient:
             print(f"Unexpected cmd={cmd}, data={data}")
             return
 
-        # parse e.g. "179~180.5~20~44100"
+        # parse e.g. "179~180.5~20~44100~170~(byte data for a pickled list)"
         splited = data.split(b'|')
         data1 = splited[0]
-        print(data1)
         times_str = b'|'.join(splited[1:])
-        print(times_str)
         pages_str, dur_str, cur_str, slr_str, pgn_str = data1.split(b'~')
         self.total_pages = int(pages_str.decode())
         self.total_duration = float(dur_str.decode())
@@ -105,7 +94,7 @@ class AudioClient:
         self.sample_rate = int(slr_str.decode())
         self.current_pages = int(pgn_str.decode())
         self.times = pickle.loads(times_str)
-        print(self.times)
+
         print(f"Server responded with {data}")
 
         # initialize ffmpeg
@@ -123,7 +112,6 @@ class AudioClient:
 
         self.audio_queue = queue.Queue()
         self.done_flag = threading.Event()
-        self.stop_flag = threading.Event()
 
         # spawn threads
         reader_t = threading.Thread(target=self.reader_thread_func, daemon=True)
@@ -144,23 +132,19 @@ class AudioClient:
 
     def stream_loop(self, client_socket):
         """
-        Continuously recv Ogg data, count pages, feed ffmpeg.
+        Continuously recv Ogg data from the server, count pages and feed to ffmpeg stdin.
+        checks for when the server finishes sending data
         """
         self.playing = True
         self.running = True
-        while self.running:
+        while True:
             cmd, chunk = protocol.get_msg(client_socket)
             if cmd == "SCNF":
                 print("Server confirmed stop")
-                self.running = False
-                self.audio_queue.queue.clear()  # Clear the audio queue
                 # Signal the playback and reader threads to stop
                 if self.done_flag:
                     self.done_flag.set()
                     print('done flag set')
-                if self.stop_flag:
-                    self.stop_flag.set()
-                    print('stop flag set')
 
                 break
             else:
@@ -180,11 +164,12 @@ class AudioClient:
 
     def reader_thread_func(self):
         """
-        Reads raw PCM from ffmpeg stdout => audio_queue
+        Reads raw PCM from ffmpeg stdout and puts it in the audio_queue
+        ffmpeg stdout -> audio_queue
         """
         self.running = True
         while self.running:
-            if self.done_flag.is_set() and is_pipe_empty(self.ffmpeg_process.stdout):
+            if self.done_flag.is_set():
                 break
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
             if not pcm:
@@ -196,12 +181,13 @@ class AudioClient:
 
     def playback_thread_func(self):
         """
-        Converts PCM to PyGame Sounds and plays them, tracking time.
+        Converts PCM to PyGame Sounds and plays them, tracking time and buffering.
         """
         pygame.mixer.init(frequency=self.sample_rate, size=-16, channels=2)
         bytes_per_frame = 4.0  # 16-bit * 2 channels
 
-        while self.stop_flag is None or not self.stop_flag.is_set():
+        while True:
+            print(self.running, self.audio_queue.empty())
             if not self.running and self.audio_queue.empty():
                 print('done flag set and audio queue empty')
                 break
@@ -227,14 +213,16 @@ class AudioClient:
             self.played_time += duration_s
             if self._time_callback:
                 self._time_callback(self.played_time, self.total_duration)
-        while not self.stop_flag.is_set():
-            time.sleep(0.1)
+
 
         self.real_stop()
         print('stopped playback')
         pygame.mixer.quit()
 
     def pcm_chunk_to_sound(self, pcm_chunk):
+        """
+        converts pcm to pygame sounds
+        """
         samples = np.frombuffer(pcm_chunk, dtype=np.int16)
         samples = samples.reshape(-1, 2)
         return sndarray.make_sound(samples)
@@ -243,20 +231,26 @@ class AudioClient:
     # Controls
     # -------------
     def pause(self):
+        """
+        pause the playback
+        :return:
+        """
         self.playing = not self.playing
 
     def stop(self):
         """
-        asks to stop
+        asks the server to stop
         """
 
         print("Stopping audio stream...")
 
         self.playing = False  # Stop playback
+        self.audio_queue.queue.clear()
 
-        # Close the network socket
-        if self.sock:
-            self.sock.sendall(protocol.create_msg("STOP", b"1"))
+        if not self.done_flag:
+            # Close the network socket
+            if self.sock:
+                self.sock.sendall(protocol.create_msg("STOP", b"1"))
 
     def real_stop(self):
         """

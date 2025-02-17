@@ -8,10 +8,10 @@ import protocol
 import pickle
 
 CHUNK_SIZE = 8192
-DELAY = 1  # artificial delay
+DELAY = 0  # artificial delay
 
 
-def closest_index(sorted_list: list[float], target: float) -> int:
+def closest_index(sorted_list, target):
     """
     Finds the index of the closest number to the target in a sorted list.
 
@@ -139,7 +139,7 @@ def build_page_index(file_path):
 
 def build_time_index(file_path, total_pages):
     """
-        TBA
+    builds a list that contains the time of each page where the index is the page and the time is the element
     """
     granule_positions = get_granule_positions(file_path)
     sample_rate = get_sample_rate(file_path)
@@ -192,11 +192,11 @@ def extract_header_data_and_last_page(file_path):
     'last_header_page_index' is the highest page index that contains
     any part of the 3rd header packet, so we know where the real audio begins.
 
-    We parse packets within each page:
-      - If we see packet type 0x01 (ID), 0x03 (comment), or 0x05 (setup),
-        we mark them found.
+     parse packets within each page:
+      - If packet type 0x01 (ID), 0x03 (comment), or 0x05 (setup),
+        mark them found.
       - Once all 3 are found, the next packet is likely audio.
-      - We note which Ogg page index we ended on.
+      - notes the Ogg page index it ended on.
     """
     needed = {0x01, 0x03, 0x05}
     found = set()
@@ -276,8 +276,8 @@ def extract_header_data_and_last_page(file_path):
 class OggServer:
     """
     A server that:
-      - Receives "RQST <song_name>~<page_num>"
-      - Builds the page index
+      - Receives "RQST <song_name>~<time>"
+      - Builds the page index and time index
       - Finds all Vorbis headers & identifies last_header_page
       - If page_num <= last_header_page: stream from offset=0 with NO re-injection
       - Else re-inject header_data, then jump to that page offset
@@ -289,6 +289,9 @@ class OggServer:
         self.stop_events = {}
 
     def start_server(self):
+        """
+        initialize the server
+        """
         serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         serv_sock.bind((self.host, self.port))
         serv_sock.listen()
@@ -300,6 +303,14 @@ class OggServer:
             threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
 
     def handle_client(self, conn):
+        """
+        Handles client requests for streaming an Ogg Vorbis file.
+        - Reads & validates "RQST song.ogg~time" -> extracts metadata (pages, duration, sample rate).
+        - Sends "PGNM" response with playback details or "ERR" if invalid request.
+        - Determines stream start: from 0 (if within headers) or re-injects headers & seeks.
+        - Streams Ogg pages -> listens for "STOP" in a separate thread.
+        - Sends "SCNF" on completion, cleans up, and closes connection.
+        """
         stop_event = self.stop_events[conn]
         # 1) Read request
 
