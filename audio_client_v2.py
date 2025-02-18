@@ -11,6 +11,34 @@ import protocol
 import pickle
 
 
+def closest_index(sorted_list, target):
+    """
+    Finds the index of the closest number to the target in a sorted list.
+
+    Parameters:
+    sorted_list (list[float]): A list of floats sorted in ascending order.
+    target (float): The number to find the closest value to.
+
+    Returns:
+    int: The index of the closest number.
+    """
+    if not sorted_list:
+        raise ValueError("The list is empty")
+
+    closest_idx = 0
+    min_diff = abs(sorted_list[0] - target)
+
+    for i in range(1, len(sorted_list)):
+        diff = abs(sorted_list[i] - target)
+        if diff < min_diff:
+            min_diff = diff
+            closest_idx = i
+        elif diff > min_diff:
+            break
+
+    return closest_idx
+
+
 class AudioClient:
     """
     A client that requests "song_name~time" from server,
@@ -28,6 +56,7 @@ class AudioClient:
         self.ffmpeg_process = None
         self.playing = False
         self.running = False
+        self.cache = {}  # page_number: page_data
 
         self.total_pages = 0
         self.current_pages = 0
@@ -168,13 +197,15 @@ class AudioClient:
         ffmpeg stdout -> audio_queue
         """
         self.running = True
+        c = 0
         while self.running:
             if self.done_flag.is_set():
                 break
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
             if not pcm:
                 break
-            self.audio_queue.put(pcm)
+            self.audio_queue.put((c, pcm))
+            c += 1
         print('reader thread done')
 
         self.running = False
@@ -196,13 +227,15 @@ class AudioClient:
                 continue
 
             try:
-                chunk = self.audio_queue.get(timeout=0.1)
+                i, chunk = self.audio_queue.get(timeout=0.1)
             except queue.Empty:
                 continue
 
             sound = self.pcm_chunk_to_sound(chunk)
             n_frames = len(chunk) / bytes_per_frame
             duration_s = n_frames / self.sample_rate
+
+            self.cache[(i, self.played_time)] = chunk
 
             sound.play()
 
@@ -212,7 +245,6 @@ class AudioClient:
             self.played_time += duration_s
             if self._time_callback:
                 self._time_callback(self.played_time, self.total_duration)
-
 
         self.real_stop()
         print('stopped playback')
@@ -235,6 +267,38 @@ class AudioClient:
         :return:
         """
         self.playing = not self.playing
+
+    def seek(self, seeked):
+        times = [key[1] for key in self.cache.keys()]
+
+        if seeked < max(times):
+            self.played_time = seeked
+            self.running = True
+
+            old_queue = list(self.audio_queue.queue)
+            self.audio_queue.queue.clear()
+
+            to_add = [t for t in self.cache if t[1] >= self.played_time]
+            added = []
+            print(to_add)
+            for t in to_add:
+                if t[0] not in added:
+                    self.audio_queue.put((t[0], self.cache[t]))
+                    added.append(t[0])
+
+            print('added start', added)
+            for item in old_queue:
+
+                if item[0] not in added:
+                    if item[0] < 50:
+                        print(f'{item[0]} not in added')
+                    self.audio_queue.put(item)
+                else:
+                    print('didnt add', item[0])
+                added.append(item[0])
+
+            self.running = False
+
 
     def stop(self):
         """

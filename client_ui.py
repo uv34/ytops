@@ -30,6 +30,9 @@ class AudioClientApp(tk.Tk):
         self.pause_button = tk.Button(self, text="Pause/Resume", command=self.pause_stream, state=tk.DISABLED)
         self.pause_button.grid(row=2, column=1, sticky='w', padx=5, pady=5)
 
+        self.seek_button = tk.Button(self, text="Seek", command=self.seek)
+        self.seek_button.grid(row=2, column=2, sticky='w', padx=5, pady=5)
+
         # Download progress
         tk.Label(self, text="Download progress:").grid(row=3, column=0, sticky='e', padx=5, pady=5)
         self.download_bar = ttk.Progressbar(self, orient="horizontal", length=200, mode="determinate")
@@ -111,6 +114,10 @@ class AudioClientApp(tk.Tk):
             self.client.stop()
         self.update_status("Stopped")
         self.pause_button.config(state=tk.DISABLED)
+
+    def seek(self):
+        if self.client:
+            self.client.seek(float(self.time_entry.get()))
 
     # Callbacks
     def on_download_progress(self, cur_pages, duration):
