@@ -2,8 +2,6 @@ import socket
 import subprocess
 import threading
 import queue
-import time
-import select
 import pygame
 import numpy as np
 from pygame import sndarray
@@ -290,7 +288,7 @@ class AudioClient:
     def seek(self, seeked):  # can be optimized
         times = [key[1] for key in self.cache.keys()]
 
-        if max(times) > seeked >= min(times):
+        if max(times) >= seeked >= min(times):
             print('seeking from cache')
             self.played_time = seeked
             save_state = self.running
