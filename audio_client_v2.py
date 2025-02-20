@@ -58,7 +58,7 @@ class AudioClient:
         self.playing = False
         self.running = False
         self.in_song = False
-        self.cache = {}  # page_number: page_data
+        self.cache = {}  # (PCM_number, time): processed data
 
         self.total_pages = 0
         self.current_pages = 0
@@ -203,6 +203,8 @@ class AudioClient:
         Reads raw PCM from ffmpeg stdout and puts it in the audio_queue
         ffmpeg stdout -> audio_queue
         """
+        bytes_per_frame = 4.0  # 16-bit * 2 channels
+        virtual_time = self.played_time  # represents the received processed time
         self.running = True
         c = 0
         while self.running:
@@ -212,8 +214,16 @@ class AudioClient:
             if not pcm:
                 break
             if not self.done_flag.is_set():  # in case done flag is set after receiving
-                self.audio_queue.put((c, pcm))
+                sound = self.pcm_chunk_to_sound(pcm)
+                n_frames = len(pcm) / bytes_per_frame
+                duration_s = n_frames / self.sample_rate
+
+                self.cache[(c, virtual_time, duration_s)] = sound
+
+                self.audio_queue.put((c, duration_s, sound))
+                # self.audio_queue.put((c, pcm))
                 c += 1
+                virtual_time += duration_s
         print('reader thread done')
 
         self.running = False
@@ -235,15 +245,10 @@ class AudioClient:
                 continue
 
             try:
-                i, chunk = self.audio_queue.get(timeout=0.1)
+                # i, duration_s, sound = self.audio_queue.get(timeout=0.1)
+                i, duration_s, sound = self.audio_queue.get(timeout=0.1)
             except queue.Empty:
                 continue
-
-            sound = self.pcm_chunk_to_sound(chunk)
-            n_frames = len(chunk) / bytes_per_frame
-            duration_s = n_frames / self.sample_rate
-
-            self.cache[(i, self.played_time)] = chunk
 
             sound.play()
 
@@ -285,7 +290,7 @@ class AudioClient:
     def seek(self, seeked):  # can be optimized
         times = [key[1] for key in self.cache.keys()]
 
-        if max(times) >= seeked >= min(times):
+        if max(times) > seeked >= min(times):
             print('seeking from cache')
             self.played_time = seeked
             save_state = self.running
@@ -296,14 +301,15 @@ class AudioClient:
 
             to_add = [t for t in self.cache if t[1] >= self.played_time]
             added = []
+            first = to_add[0]
             for t in to_add:
                 if t[0] not in added:
-                    self.audio_queue.put((t[0], self.cache[t]))
+                    self.audio_queue.put((t[0], t[2], self.cache[t]))
                     added.append(t[0])
 
             for item in old_queue:
 
-                if item[0] not in added:
+                if item[0] not in added and item[0] > first[0]:
                     self.audio_queue.put(item)
                     added.append(item[0])
             self.running = save_state
