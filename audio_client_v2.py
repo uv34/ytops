@@ -285,9 +285,10 @@ class AudioClient:
     def seek(self, seeked):  # can be optimized
         times = [key[1] for key in self.cache.keys()]
 
-        if max(times) > seeked > min(times):
-            print('seeking')
+        if max(times) >= seeked >= min(times):
+            print('seeking from cache')
             self.played_time = seeked
+            save_state = self.running
             self.running = True
 
             old_queue = list(self.audio_queue.queue)
@@ -295,26 +296,22 @@ class AudioClient:
 
             to_add = [t for t in self.cache if t[1] >= self.played_time]
             added = []
-            print(to_add)
             for t in to_add:
                 if t[0] not in added:
                     self.audio_queue.put((t[0], self.cache[t]))
                     added.append(t[0])
 
-            print('added start', added)
             for item in old_queue:
 
                 if item[0] not in added:
-                    if item[0] < 50:
-                        print(f'{item[0]} not in added')
                     self.audio_queue.put(item)
-                else:
-                    print('didnt add', item[0])
-                added.append(item[0])
-            self.running = False
+                    added.append(item[0])
+            self.running = save_state
         else:
+            print('seeking from server')
             self.played_time = seeked
             self.stop(True)
+        print('finished seeking')
 
     def stop(self, for_seek=False):
         """
