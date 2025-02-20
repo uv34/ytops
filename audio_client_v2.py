@@ -49,13 +49,15 @@ class AudioClient:
         self.host = host
         self.port = port
         self.chunk_size = chunk_size
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = None
 
+        self.song_name = None
         self.audio_queue = None
         self.done_flag = None  # stopped receiving from server
         self.ffmpeg_process = None
         self.playing = False
         self.running = False
+        self.in_song = False
         self.cache = {}  # page_number: page_data
 
         self.total_pages = 0
@@ -85,8 +87,12 @@ class AudioClient:
         """
         connects to the server, sends "RQST" with data = "song_name~t".
         """
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
         req_str = f"{song_name}~{t}"
+        self.song_name = song_name
+        print(f'{self.sock} is asking for {song_name} in {t}')
+
         msg = protocol.create_msg("RQST", req_str.encode())
         self.sock.sendall(msg)
 
@@ -166,6 +172,7 @@ class AudioClient:
         """
         self.playing = True
         self.running = True
+        self.in_song = True
         while True:
             cmd, chunk = protocol.get_msg(client_socket)
             if cmd == "SCNF":
@@ -204,8 +211,9 @@ class AudioClient:
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
             if not pcm:
                 break
-            self.audio_queue.put((c, pcm))
-            c += 1
+            if not self.done_flag.is_set():  # in case done flag is set after receiving
+                self.audio_queue.put((c, pcm))
+                c += 1
         print('reader thread done')
 
         self.running = False
@@ -247,8 +255,14 @@ class AudioClient:
                 self._time_callback(self.played_time, self.total_duration)
 
         self.real_stop()
+        if self.in_song:
+            print('asking from', self.played_time)
+            self.ask_for_song(self.song_name, self.played_time)
+            self.receive_stream()
+
         print('stopped playback')
         pygame.mixer.quit()
+
 
     def pcm_chunk_to_sound(self, pcm_chunk):
         """
@@ -268,10 +282,11 @@ class AudioClient:
         """
         self.playing = not self.playing
 
-    def seek(self, seeked):
+    def seek(self, seeked):  # can be optimized
         times = [key[1] for key in self.cache.keys()]
 
-        if seeked < max(times):
+        if max(times) > seeked > min(times):
+            print('seeking')
             self.played_time = seeked
             self.running = True
 
@@ -296,30 +311,38 @@ class AudioClient:
                 else:
                     print('didnt add', item[0])
                 added.append(item[0])
-
             self.running = False
+        else:
+            self.played_time = seeked
+            self.stop(True)
 
-
-    def stop(self):
+    def stop(self, for_seek=False):
         """
         asks the server to stop
         """
 
         print("Stopping audio stream...")
-
+        if not for_seek:
+            self.in_song = False
+            self.song_name = None
+        print('for seek', for_seek)
         self.playing = False  # Stop playback
         self.audio_queue.queue.clear()
+        print('not playing and queue cleared')
 
-        if not self.done_flag:
-            # Close the network socket
+        if not self.done_flag.is_set():
             if self.sock:
                 self.sock.sendall(protocol.create_msg("STOP", b"1"))
+                print('sent stop')
+        else:
+            print('already finished receiving')
 
     def real_stop(self):
         """
         Stops playback, closes connections, and terminates the ffmpeg process.
         """
         self.playing = False
+        self.cache = {}
         if self.sock:
             try:
                 self.sock.close()
