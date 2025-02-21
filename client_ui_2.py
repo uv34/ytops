@@ -53,7 +53,6 @@ class AudioClientApp(tk.Tk):
         self.downloaded_time = 0.0
         self.played_time = 0.0
 
-
     def on_canvas_configure(self, event):
         print('event', event)
         self.draw_slider()
@@ -75,34 +74,34 @@ class AudioClientApp(tk.Tk):
         downloaded_x = ratio_downloaded * w
         played_x = ratio_played * w
 
-        # Draw total track (light gray)
+        # Draw total track
         self.slider_canvas.create_line(
             handle_radius, center_y,
             w + handle_radius, center_y,
             width=bar_height,
             fill="#dddddd"
         )
-        # Draw downloaded portion (medium gray)
+        # Draw downloaded portion
         self.slider_canvas.create_line(
             handle_radius, center_y,
             downloaded_x + handle_radius, center_y,
             width=bar_height,
             fill="#cccccc"
         )
-        # Draw played portion (red)
+        # Draw played portion
         self.slider_canvas.create_line(
             handle_radius, center_y,
-            played_x, center_y,
+            played_x + handle_radius, center_y,
             width=bar_height,
             fill="#888888"
         )
         # Draw the handle (circle)
-        self.slider_canvas.create_oval(
+        """self.slider_canvas.create_oval(
             played_x, center_y - handle_radius,
             played_x + 2 * handle_radius, center_y + handle_radius,
             fill="#888888", outline="white", width=2
         )
-
+        """
     # Mouse events
     def on_slider_press(self, event):
         self.dragging = True
