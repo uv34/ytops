@@ -1,5 +1,3 @@
-# ui_client_seek.py
-
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -10,6 +8,9 @@ class AudioClientApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Ogg Vorbis Client (Page-based)")
+
+        style = ttk.Style(self)
+        style.theme_use("alt")
 
         # Song
         tk.Label(self, text="Song:").grid(row=0, column=0, sticky='e', padx=5, pady=5)
@@ -44,12 +45,19 @@ class AudioClientApp(tk.Tk):
         tk.Label(self, text="Playback (seconds):").grid(row=5, column=0, sticky='e', padx=5, pady=5)
         self.playback_bar = ttk.Progressbar(self, orient="horizontal", length=200, mode="determinate")
         self.playback_bar.grid(row=5, column=1, sticky='w', padx=5, pady=5)
-        self.playback_label = tk.Label(self, text="0.0 / 0.0 sec")
+        self.playback_label = tk.Label(self, text="0.0 / ? sec")
         self.playback_label.grid(row=6, column=0, columnspan=2)
+
+        # Playback slider with seek functionality
+        self.playback_slider = ttk.Scale(self, from_=0, to=100, orient=tk.HORIZONTAL, length=200)
+        self.playback_slider.grid(row=7, column=0, columnspan=2)
+        self.playback_slider.bind("<ButtonPress-1>", self.on_slider_press)
+        self.playback_slider.bind("<ButtonRelease-1>", self.on_slider_release)
+        self.slider_dragging = False  # Flag to indicate if user is dragging the slider
 
         # Status
         self.status_label = tk.Label(self, text="Status: Idle")
-        self.status_label.grid(row=7, column=0, columnspan=2)
+        self.status_label.grid(row=8, column=0, columnspan=2)
 
         self.client = None
         self.stream_thread = None
@@ -119,6 +127,17 @@ class AudioClientApp(tk.Tk):
         if self.client:
             self.client.seek(float(self.time_entry.get()))
 
+    # Slider event callbacks
+    def on_slider_press(self, event):
+        self.slider_dragging = True
+
+    def on_slider_release(self, event):
+        self.slider_dragging = False
+        if self.client:
+            # Seek to the time corresponding to the slider's current value.
+            seek_time = float(self.playback_slider.get())
+            self.client.seek(seek_time)
+
     # Callbacks
     def on_download_progress(self, cur_pages, duration):
         self.after(0, self._update_download, self.client.times[cur_pages], duration)
@@ -137,6 +156,11 @@ class AudioClientApp(tk.Tk):
         self.playback_bar["maximum"] = total_s
         self.playback_bar["value"] = played_s
         self.playback_label.config(text=f"{played_s:.1f} / {total_s:.1f} sec")
+        # Update the slider range:
+        self.playback_slider.config(from_=0, to=total_s)
+        # Only update slider's position if the user is not dragging it.
+        if not self.slider_dragging:
+            self.playback_slider.set(played_s)
 
     def update_status(self, text):
         self.status_label.config(text=f"Status: {text}")
