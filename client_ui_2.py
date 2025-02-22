@@ -26,8 +26,8 @@ class AudioClientApp(tk.Tk):
         self.pause_button.grid(row=2, column=1, sticky='w', padx=5, pady=5)
 
         # Canvas that will serve as our slider
-        self.slider_canvas = tk.Canvas(self, width=400, height=30, bg=self.cget("bg"), highlightthickness=0)
-        self.slider_canvas.grid(row=3, column=0, columnspan=2, padx=5, pady=(10,5))
+        self.slider_canvas = tk.Canvas(self, width=400, height=10, bg=self.cget("bg"), highlightthickness=0)
+        self.slider_canvas.grid(row=4, column=0, columnspan=2, padx=5, pady=(10, 5))
         # Bind <Configure> so we know when the canvas size is finalized
         self.slider_canvas.bind("<Configure>", self.on_canvas_configure)
 
@@ -39,11 +39,11 @@ class AudioClientApp(tk.Tk):
 
         # Playback time label
         self.playback_label = tk.Label(self, text="0.0 / ? sec")
-        self.playback_label.grid(row=4, column=0, columnspan=2)
+        self.playback_label.grid(row=5, column=0, columnspan=2)
 
         # Status label
         self.status_label = tk.Label(self, text="Status: Idle")
-        self.status_label.grid(row=5, column=0, columnspan=2)
+        self.status_label.grid(row=6, column=0, columnspan=2)
 
         # Internal state
         self.client = None
