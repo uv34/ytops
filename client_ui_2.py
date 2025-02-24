@@ -2,32 +2,38 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
+
 from audio_client_v2 import AudioClient
+
+def time_str(time: float) -> str:
+    return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
 
 class AudioClientApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Ogg Vorbis Client (YouTube-like Slider)")
+        self.geometry("400x100")
 
         style = ttk.Style(self)
-        style.theme_use("alt")
+        style.theme_use("clam")
+
 
         # Song
-        tk.Label(self, text="Song:").grid(row=0, column=0, sticky='e', padx=5, pady=5)
+        tk.Label(self, text="Song:").grid(row=0, column=1, sticky='e', padx=5, pady=5)
         self.song_entry = tk.Entry(self)
         self.song_entry.insert(0, "example.ogg")
-        self.song_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.song_entry.grid(row=0, column=2, padx=5, pady=5)
 
         # Buttons
         self.start_button = tk.Button(self, text="Start/Stop", command=self.start_button)
-        self.start_button.grid(row=2, column=0, sticky='e', padx=5, pady=5)
+        self.start_button.grid(row=2, column=1, sticky='e', padx=5, pady=5)
 
         self.pause_button = tk.Button(self, text="Pause/Resume", command=self.pause_stream, state=tk.DISABLED)
-        self.pause_button.grid(row=2, column=1, sticky='w', padx=5, pady=5)
+        self.pause_button.grid(row=2, column=2, sticky='w', padx=5, pady=5)
 
         # Canvas that will serve as our slider
-        self.slider_canvas = tk.Canvas(self, width=400, height=10, bg=self.cget("bg"), highlightthickness=0)
-        self.slider_canvas.grid(row=4, column=0, columnspan=2, padx=5, pady=(10, 5))
+        self.slider_canvas = tk.Canvas(self, width=300, height=10, bg=self.cget("bg"), highlightthickness=0)
+        self.slider_canvas.grid(row=3, column=1, columnspan=2, padx=5, pady=(10,5))
         # Bind <Configure> so we know when the canvas size is finalized
         self.slider_canvas.bind("<Configure>", self.on_canvas_configure)
 
@@ -38,12 +44,12 @@ class AudioClientApp(tk.Tk):
         self.dragging = False
 
         # Playback time label
-        self.playback_label = tk.Label(self, text="0.0 / ? sec")
-        self.playback_label.grid(row=5, column=0, columnspan=2)
+        self.current_playback_label = tk.Label(self, text="0:00")
+        self.current_playback_label.grid(row=3, column=0, padx=10)
 
-        # Status label
-        self.status_label = tk.Label(self, text="Status: Idle")
-        self.status_label.grid(row=6, column=0, columnspan=2)
+        self.total_playback_label = tk.Label(self, text="0:00")
+        self.total_playback_label.grid(row=3, column=3, padx=10)
+
 
         # Internal state
         self.client = None
@@ -52,6 +58,7 @@ class AudioClientApp(tk.Tk):
         self.total_time = 1.0
         self.downloaded_time = 0.0
         self.played_time = 0.0
+
 
     def on_canvas_configure(self, event):
         print('event', event)
@@ -74,21 +81,21 @@ class AudioClientApp(tk.Tk):
         downloaded_x = ratio_downloaded * w
         played_x = ratio_played * w
 
-        # Draw total track
+        # Draw total track (light gray)
         self.slider_canvas.create_line(
             handle_radius, center_y,
             w + handle_radius, center_y,
             width=bar_height,
             fill="#dddddd"
         )
-        # Draw downloaded portion
+        # Draw downloaded portion (medium gray)
         self.slider_canvas.create_line(
             handle_radius, center_y,
             downloaded_x + handle_radius, center_y,
             width=bar_height,
             fill="#cccccc"
         )
-        # Draw played portion
+        # Draw played portion (red)
         self.slider_canvas.create_line(
             handle_radius, center_y,
             played_x + handle_radius, center_y,
@@ -100,8 +107,8 @@ class AudioClientApp(tk.Tk):
             played_x, center_y - handle_radius,
             played_x + 2 * handle_radius, center_y + handle_radius,
             fill="#888888", outline="white", width=2
-        )
-        """
+        )"""
+
     # Mouse events
     def on_slider_press(self, event):
         self.dragging = True
@@ -149,13 +156,15 @@ class AudioClientApp(tk.Tk):
             total_s = 1
         self.total_time = total_s
         self.played_time = played_s
-        self.playback_label.config(text=f"{played_s:.1f} / {total_s:.1f} sec")
+        self.current_playback_label.config(text=time_str(played_s))
+        if self.total_time > 0:
+            self.total_playback_label.config(text=time_str(total_s))
         if not self.dragging:
             self.draw_slider()
 
     # Helpers
     def update_status(self, text):
-        self.status_label.config(text=f"Status: {text}")
+        print(f"Status: {text}")
 
     def pause_stream(self):
         if self.client:
@@ -212,7 +221,8 @@ class AudioClientApp(tk.Tk):
         self.total_time = 1.0
         self.downloaded_time = 0.0
         self.played_time = 0.0
-        self.playback_label.config(text="0.0 / ? sec")
+        self.current_playback_label.config(text="0:00")
+        self.total_playback_label.config(text="0:00")
         self.draw_slider()
 
 if __name__ == "__main__":
