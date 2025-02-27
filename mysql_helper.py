@@ -1,4 +1,7 @@
+from operator import length_hint
+
 import mysql.connector
+from ogg_handler import get_ogg_duration, get_sample_rate, count_ogg_pages
 
 
 class DBController:
@@ -81,6 +84,7 @@ class DBController:
         self.conn.commit()
         cursor.close()
 
+
     def print_tables(self):
         """
         Prints the names of all tables in the current database and their contents.
@@ -106,10 +110,15 @@ class DBController:
 # Example usage:
 if __name__ == '__main__':
     # Replace with your actual credentials.
-    db = DBController(host="localhost", user="root", password="uv123", database="mydb")
+    db = DBController(host="localhost", user="root", password="SqlUV123!", database="mydb")
 
     print("\nPrinting all tables:")
     db.print_tables()
+    """album_id = 1
+    length = get_ogg_duration("2.ogg")
+    sample_rate = get_sample_rate('2.ogg')
+    pages = count_ogg_pages('2.ogg')
+    song_id = db.create_song(album_id, "The Boy With The Thorn In His Side", "The Smiths", length, sample_rate, pages)"""
     """# Create an album.
     album_id = db.create_album("Album Title", "Album Author", "cover.jpg")
     print("Created Album ID:", album_id)
