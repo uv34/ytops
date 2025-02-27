@@ -10,7 +10,7 @@ from mysql_helper import DBController
 from ogg_handler import *
 
 CHUNK_SIZE = 8192
-DELAY = 0  # artificial delay
+DELAY = 1  # artificial delay
 
 
 def closest_index(sorted_list, target):
@@ -55,7 +55,7 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.db = DBController(host="localhost", user="root", password="SqlUV123!", database="mydb")
+        self.db = DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
         self.stop_events = {}
 
     def start_server(self):
@@ -97,13 +97,13 @@ class OggServer:
             conn.close()
             return
 
-        song_name, t_str = parts
+        song_id, t_str = parts
         asked_time = float(t_str)
 
-        song = self.db.get_song(song_name)
-        filepath = f'songs/{song_name}.ogg'
+        song = self.db.get_song(song_id)
+        filepath = f'songs/{song_id}.ogg'
         if song is None:
-            print(f"File not found: {song_name}")
+            print(f"File not found: {song_id}.ogg")
             conn.sendall(protocol.create_msg("ERR ", b"Song does not exist"))
             conn.close()
             return
@@ -112,7 +112,7 @@ class OggServer:
         # 2) Build page index
         page_offsets = build_page_index(filepath)
         total_pages = len(page_offsets)
-        print(f"'{song_name}' => total_pages={total_pages}")
+        print(f"'{song_id}' => total_pages={total_pages}")
 
         # 3) Extract headers + find last_header_page
         header_data, last_header_page_idx = extract_header_data_and_last_page(filepath)
@@ -134,7 +134,7 @@ class OggServer:
         # 5) Send PGNM "<total_pages>~<duration>"
         real_page = 0 if page_num <= last_header_page_idx else page_num - 2
         # dumps contained ~ so i used |
-        pgnm_data = f"{total_pages}~{duration}~{current_time}~{sample_rate}~{real_page}|".encode() + pickle.dumps(times)
+        pgnm_data = f"{song['name']}~{song['author']}~{total_pages}~{duration}~{current_time}~{sample_rate}~{real_page}|".encode() + pickle.dumps(times)
         print('items:', pgnm_data.count(b'|'))
         conn.sendall(protocol.create_msg("PGNM", pgnm_data))
         print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")
@@ -147,7 +147,7 @@ class OggServer:
 
         if page_num <= last_header_page_idx:
             print(f"Page {page_num} <= last_header_page_idx={last_header_page_idx}, streaming from 0 (no injection).")
-            self.stream_from_offset(conn, song_name, 0)
+            self.stream_from_offset(conn, song_id, 0)
         elif page_num:
             # Re-inject header_data, then jump to page_num
             print(f"Page {page_num} > last_header_page_idx={last_header_page_idx}, re-injecting headers then offset.")
@@ -156,7 +156,7 @@ class OggServer:
             # 8) Then stream from page_offsets[page_num]
             offset = page_offsets[page_num]
             print(f"Streaming from offset={offset}, page={page_num}")
-            self.stream_from_offset(conn, song_name, offset)
+            self.stream_from_offset(conn, song_id, offset)
 
         conn.sendall(protocol.create_msg("SCNF", b"1"))
         stop_event.set()

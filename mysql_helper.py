@@ -9,6 +9,7 @@ class DBController:
     A controller class to interact with the MySQL database 'mydb'.
     Provides methods for creating and retrieving albums, songs, and playlists,
     as well as adding songs to playlists.
+    im inserting the params through execute to avoid injections
     """
 
     def __init__(self, host, user, password, database, port=3306):
@@ -109,8 +110,7 @@ class DBController:
 
 # Example usage:
 if __name__ == '__main__':
-    # Replace with your actual credentials.
-    db = DBController(host="localhost", user="root", password="SqlUV123!", database="mydb")
+    db = DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
 
     print("\nPrinting all tables:")
     db.print_tables()

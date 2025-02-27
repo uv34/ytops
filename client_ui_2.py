@@ -12,17 +12,20 @@ class AudioClientApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Ogg Vorbis Client (YouTube-like Slider)")
-        self.geometry("400x100")
+        self.geometry("400x150")
+        self.resizable(False, False)
 
         style = ttk.Style(self)
         style.theme_use("clam")
 
-
         # Song
         tk.Label(self, text="Song:").grid(row=0, column=1, sticky='e', padx=5, pady=5)
         self.song_entry = tk.Entry(self)
-        self.song_entry.insert(0, "example.ogg")
+        self.song_entry.insert(0, "1")
         self.song_entry.grid(row=0, column=2, padx=5, pady=5)
+
+        self. song_info_label = tk.Label(self, text="song name\n author")
+        self.song_info_label.grid(row=1, column=1, columnspan=2, sticky='', padx=5, pady=5)
 
         # Buttons
         self.start_button = tk.Button(self, text="Start/Stop", command=self.start_button)
@@ -190,8 +193,8 @@ class AudioClientApp(tk.Tk):
             messagebox.showinfo("Info", "Already streaming!")
             return
 
-        song_name = self.song_entry.get()
-        page_num = 0
+        song_id = self.song_entry.get()
+        time = 0
 
         self.client = AudioClient()
         self.client.set_progress_callback(self.on_download_progress)
@@ -200,8 +203,8 @@ class AudioClientApp(tk.Tk):
         def run():
             try:
                 self.update_status("Connecting to server...")
-                self.client.ask_for_song(song_name, page_num)
-                self.update_status(f"Requesting {song_name}, page={page_num}")
+                self.client.ask_for_song(song_id, time)
+                self.update_status(f"Requesting {song_id}, time={time}")
                 self.client.receive_stream()
                 self.update_status("Stream ended.")
                 self.client = None
@@ -216,7 +219,6 @@ class AudioClientApp(tk.Tk):
 
         self.update_status("Attempting to stream...")
         self.pause_button.config(state=tk.NORMAL)
-
         # Reset times
         self.total_time = 1.0
         self.downloaded_time = 0.0
@@ -224,6 +226,9 @@ class AudioClientApp(tk.Tk):
         self.current_playback_label.config(text="0:00")
         self.total_playback_label.config(text="0:00")
         self.draw_slider()
+        while self.client.author == '':
+            continue
+        self.song_info_label.config(text=f'{self.client.song_name}\n{self.client.author}')
 
 if __name__ == "__main__":
     app = AudioClientApp()

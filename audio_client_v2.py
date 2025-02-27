@@ -49,7 +49,9 @@ class AudioClient:
         self.chunk_size = chunk_size
         self.sock = None
 
-        self.song_name = None
+        self.song_id = None
+        self.song_name = ''
+        self.author = ''
         self.audio_queue = None
         self.done_flag = None  # stopped receiving from server
         self.ffmpeg_process = None
@@ -81,15 +83,15 @@ class AudioClient:
     # -------------
     # Main request
     # -------------
-    def ask_for_song(self, song_name: str, t: float):
+    def ask_for_song(self, song_id: str, t: float):
         """
-        connects to the server, sends "RQST" with data = "song_name~t".
+        connects to the server, sends "RQST" with data = "song_id~t".
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
-        req_str = f"{song_name}~{t}"
-        self.song_name = song_name
-        print(f'{self.sock} is asking for {song_name} in {t}')
+        req_str = f"{song_id}~{t}"
+        self.song_id = song_id
+        print(f'{self.sock} is asking for {song_id} in {t}')
 
         msg = protocol.create_msg("RQST", req_str.encode())
         self.sock.sendall(msg)
@@ -120,12 +122,14 @@ class AudioClient:
         splited = data.split(b'|')
         data1 = splited[0]
         times_str = b'|'.join(splited[1:])
-        pages_str, dur_str, cur_str, slr_str, pgn_str = data1.split(b'~')
+        name_str, auth_str, pages_str, dur_str, cur_str, slr_str, pgn_str = data1.split(b'~')
         self.total_pages = int(pages_str.decode())
         self.total_duration = float(dur_str.decode())
         self.played_time = float(cur_str.decode())
         self.sample_rate = int(slr_str.decode())
         self.current_pages = int(pgn_str.decode())
+        self.song_name = name_str.decode()
+        self.author = auth_str.decode()
         self.times = pickle.loads(times_str)
 
         print(f"Server responded with {data}")
@@ -260,7 +264,7 @@ class AudioClient:
         self.real_stop()
         if self.in_song:
             print('asking from', self.played_time)
-            self.ask_for_song(self.song_name, self.played_time)
+            self.ask_for_song(self.song_id, self.played_time)
             self.receive_stream()
 
         print('stopped playback')
@@ -325,7 +329,7 @@ class AudioClient:
         print("Stopping audio stream...")
         if not for_seek:
             self.in_song = False
-            self.song_name = None
+            self.song_id = None
         print('for seek', for_seek)
         self.playing = False  # Stop playback
         self.audio_queue.queue.clear()
