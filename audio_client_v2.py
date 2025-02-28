@@ -55,8 +55,9 @@ class AudioClient:
         self.author = ''
         self.album = ''
         self.cover = b''
-        self.audio_queue = None
-        self.done_flag = None  # stopped receiving from server
+        self.audio_queue = queue.Queue()
+
+        self.done_flag = threading.Event()  # stopped receiving from server
         self.ffmpeg_process = None
         self.playing = False
         self.running = False
@@ -92,12 +93,14 @@ class AudioClient:
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
+        print('connected')
         req_str = f"{song_id}~{t}"
         self.song_id = song_id
         print(f'{self.sock} is asking for {song_id} in {t}')
 
         msg = protocol.create_msg("RQST", req_str.encode())
         self.sock.sendall(msg)
+        print('sent request')
 
     # -------------
     # Decoding & Playback
@@ -108,9 +111,6 @@ class AudioClient:
         If "PGNM", parse data, then start ffmpeg + streaming loop.
         """
         cmd, data = protocol.get_msg(self.sock)
-        if not cmd:
-            print("No command from server. Possibly disconnected.")
-            return
 
         if cmd == "ERR ":
             # server says error

@@ -221,10 +221,12 @@ class AudioClientApp(tk.Tk):
             except Exception as e:
                 messagebox.showerror("Error", str(e))
                 self.update_status(f"Error: {e}")
+                print(f"ErroRRRR")
             finally:
                 self.pause_button.config(state=tk.DISABLED)
+                self.stream_thread = None
 
-                # Start background thread to avoid blocking UI
+        # Start background thread to avoid blocking UI
         self.stream_thread = threading.Thread(target=run, daemon=True)
         self.stream_thread.start()
 
@@ -238,20 +240,15 @@ class AudioClientApp(tk.Tk):
         self.total_playback_label.config(text="0:00")
         self.draw_slider()
 
-        # Wait a moment in a thread or poll until the client has metadata.
         def check_metadata():
-            # Once client has valid author, we assume the server responded
             if self.client and self.client.cover != b'':
-                # update label
                 self.song_info_label.config(
                     text=f"{self.client.song_name}\n{self.client.author} - {self.client.album}"
                 )
-                # If we have cover bytes, show them:
                 if self.client.cover:
                     try:
                         img = io.BytesIO(self.client.cover)
                         pil_img = Image.open(img)
-                        # Optionally resize or do something if needed
                         self.cover_tk = ImageTk.PhotoImage(pil_img)
                         self.cover_label.config(image=self.cover_tk)
                     except Exception as e:
