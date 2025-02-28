@@ -7,6 +7,7 @@ import numpy as np
 from pygame import sndarray
 import protocol
 import pickle
+import base64
 
 
 def closest_index(sorted_list, target):
@@ -52,6 +53,8 @@ class AudioClient:
         self.song_id = None
         self.song_name = ''
         self.author = ''
+        self.album = ''
+        self.cover = b''
         self.audio_queue = None
         self.done_flag = None  # stopped receiving from server
         self.ffmpeg_process = None
@@ -120,16 +123,19 @@ class AudioClient:
 
         # parse e.g. "179~180.5~20~44100~170~(byte data for a pickled list)"
         splited = data.split(b'|')
-        data1 = splited[0]
-        times_str = b'|'.join(splited[1:])
-        name_str, auth_str, pages_str, dur_str, cur_str, slr_str, pgn_str = data1.split(b'~')
+        metadata = splited[0]
+        times_str = b'|'.join(splited[1:-1])
+        cover_b64 = splited[-1]
+        name_str, auth_str, album_str, pages_str, dur_str, cur_str, slr_str, pgn_str = metadata.split(b'~')
         self.total_pages = int(pages_str.decode())
         self.total_duration = float(dur_str.decode())
         self.played_time = float(cur_str.decode())
         self.sample_rate = int(slr_str.decode())
         self.current_pages = int(pgn_str.decode())
         self.song_name = name_str.decode()
+        self.album = album_str.decode()
         self.author = auth_str.decode()
+        self.cover = base64.b64decode(cover_b64)
         self.times = pickle.loads(times_str)
 
         print(f"Server responded with {data}")
@@ -145,6 +151,7 @@ class AudioClient:
             "-ar", slr_str,
             "pipe:1"
         ]
+        print('ffmpeg command:', ffmpeg_cmd)
         self.ffmpeg_process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         self.audio_queue = queue.Queue()

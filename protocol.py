@@ -1,7 +1,7 @@
 import socket
 
 COMMANDS = ['PGNM', 'RQST', 'STOP', 'SCNF', 'PAGE']
-LENGTH_HEADER = 5
+LENGTH_HEADER = 6
 CMD_HEADER = 4
 
 def check_cmd(cmd):

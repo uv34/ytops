@@ -6,6 +6,7 @@ import struct
 import pyogg
 import protocol
 import pickle
+import base64
 from mysql_helper import DBController
 from ogg_handler import *
 
@@ -39,7 +40,6 @@ def closest_index(sorted_list, target):
             break
 
     return closest_idx
-
 
 
 class OggServer:
@@ -122,6 +122,7 @@ class OggServer:
         # 4) Compute total duration
         duration = song['length']
         sample_rate = song['sample_rate']
+        album = self.db.get_album(song['album_id'])
         page_num = closest_index(times, asked_time)
         current_time = get_time_until_page(filepath, page_num)
 
@@ -133,8 +134,12 @@ class OggServer:
 
         # 5) Send PGNM "<total_pages>~<duration>"
         real_page = 0 if page_num <= last_header_page_idx else page_num - 2
+        with open(f'covers/{album["cover"]}', 'rb') as f:
+            cover_data = f.read()
         # dumps contained ~ so i used |
-        pgnm_data = f"{song['name']}~{song['author']}~{total_pages}~{duration}~{current_time}~{sample_rate}~{real_page}|".encode() + pickle.dumps(times)
+        pgnm_data = (f"{song['name']}~{song['author']}~{album['name']}~{total_pages}~{duration}~{current_time}~"
+                     f"{sample_rate}~{real_page}|").encode() + pickle.dumps(times) + b"|" + base64.b64encode(cover_data)
+
         print('items:', pgnm_data.count(b'|'))
         conn.sendall(protocol.create_msg("PGNM", pgnm_data))
         print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")

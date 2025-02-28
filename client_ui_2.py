@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
-
+from PIL import Image, ImageTk
+import io
 
 from audio_client_v2 import AudioClient
 
@@ -17,6 +18,12 @@ class AudioClientApp(tk.Tk):
 
         style = ttk.Style(self)
         style.theme_use("clam")
+        #cover
+        pil_img = Image.open("default.jpg")
+        self.cover_tk = ImageTk.PhotoImage(pil_img)
+
+        self.cover_label = tk.Label(self, image=self.cover_tk, )
+        self.cover_label.grid(row=0, column=0, columnspan=2, sticky='w', rowspan=2, padx=10, pady=10)
 
         # Song
         tk.Label(self, text="Song:").grid(row=0, column=1, sticky='e', padx=5, pady=5)
@@ -45,6 +52,7 @@ class AudioClientApp(tk.Tk):
         self.slider_canvas.bind("<B1-Motion>", self.on_slider_move)
         self.slider_canvas.bind("<ButtonRelease-1>", self.on_slider_release)
         self.dragging = False
+
 
         # Playback time label
         self.current_playback_label = tk.Label(self, text="0:00")
@@ -186,6 +194,7 @@ class AudioClientApp(tk.Tk):
             if self.stream_thread:
                 self.stop_stream()
                 return
+        print('start stream')
         self.start_stream()
 
     def start_stream(self):
@@ -199,6 +208,7 @@ class AudioClientApp(tk.Tk):
         self.client = AudioClient()
         self.client.set_progress_callback(self.on_download_progress)
         self.client.set_time_callback(self.on_playback_time)
+        print('audio client created')
 
         def run():
             try:
@@ -214,6 +224,7 @@ class AudioClientApp(tk.Tk):
             finally:
                 self.pause_button.config(state=tk.DISABLED)
 
+                # Start background thread to avoid blocking UI
         self.stream_thread = threading.Thread(target=run, daemon=True)
         self.stream_thread.start()
 
@@ -226,9 +237,32 @@ class AudioClientApp(tk.Tk):
         self.current_playback_label.config(text="0:00")
         self.total_playback_label.config(text="0:00")
         self.draw_slider()
-        while self.client.author == '':
-            continue
-        self.song_info_label.config(text=f'{self.client.song_name}\n{self.client.author}')
+
+        # Wait a moment in a thread or poll until the client has metadata.
+        def check_metadata():
+            # Once client has valid author, we assume the server responded
+            if self.client and self.client.cover != b'':
+                # update label
+                self.song_info_label.config(
+                    text=f"{self.client.song_name}\n{self.client.author} - {self.client.album}"
+                )
+                # If we have cover bytes, show them:
+                if self.client.cover:
+                    try:
+                        img = io.BytesIO(self.client.cover)
+                        pil_img = Image.open(img)
+                        # Optionally resize or do something if needed
+                        self.cover_tk = ImageTk.PhotoImage(pil_img)
+                        self.cover_label.config(image=self.cover_tk)
+                    except Exception as e:
+                        print(f"Error loading cover image: {e}")
+                return
+            # If metadata not there yet, keep checking
+            if self.client:
+                self.after(100, check_metadata)
+
+        self.after(100, check_metadata)
+
 
 if __name__ == "__main__":
     app = AudioClientApp()
