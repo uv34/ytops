@@ -102,6 +102,22 @@ class AudioClient:
         self.sock.sendall(msg)
         print('sent request')
 
+    def receive_metadata(self, data):
+        splited = data.split(b'|')
+        metadata = splited[0]
+        times_str = b'|'.join(splited[1:-1])
+        cover_b64 = splited[-1]
+        name_str, auth_str, album_str, pages_str, dur_str, cur_str, slr_str, pgn_str = metadata.split(b'~')
+        self.total_pages = int(pages_str.decode())
+        self.total_duration = float(dur_str.decode())
+        self.played_time = float(cur_str.decode())
+        self.sample_rate = int(slr_str.decode())
+        self.current_pages = int(pgn_str.decode())
+        self.song_name = name_str.decode()
+        self.album = album_str.decode()
+        self.author = auth_str.decode()
+        self.cover = base64.b64decode(cover_b64)
+        self.times = pickle.loads(times_str)
     # -------------
     # Decoding & Playback
     # -------------
@@ -121,22 +137,8 @@ class AudioClient:
             print(f"Unexpected cmd={cmd}, data={data}")
             return
 
-        # parse e.g. "179~180.5~20~44100~170~(byte data for a pickled list)"
-        splited = data.split(b'|')
-        metadata = splited[0]
-        times_str = b'|'.join(splited[1:-1])
-        cover_b64 = splited[-1]
-        name_str, auth_str, album_str, pages_str, dur_str, cur_str, slr_str, pgn_str = metadata.split(b'~')
-        self.total_pages = int(pages_str.decode())
-        self.total_duration = float(dur_str.decode())
-        self.played_time = float(cur_str.decode())
-        self.sample_rate = int(slr_str.decode())
-        self.current_pages = int(pgn_str.decode())
-        self.song_name = name_str.decode()
-        self.album = album_str.decode()
-        self.author = auth_str.decode()
-        self.cover = base64.b64decode(cover_b64)
-        self.times = pickle.loads(times_str)
+        # parse e.g. "song name~author~album~pages~duration~time~sample rate~current_page|(pickled list)|(b64 cover)"
+        self.receive_metadata(data)
 
         print(f"Server responded with {data}")
 
@@ -148,9 +150,10 @@ class AudioClient:
             "-f", "s16le",
             "-acodec", "pcm_s16le",
             "-ac", "2",
-            "-ar", slr_str,
+            "-ar", str(self.sample_rate),
             "pipe:1"
         ]
+
         print('ffmpeg command:', ffmpeg_cmd)
         self.ffmpeg_process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
@@ -230,7 +233,6 @@ class AudioClient:
                 self.cache[(c, virtual_time, duration_s)] = sound
 
                 self.audio_queue.put((c, duration_s, sound))
-                # self.audio_queue.put((c, pcm))
                 c += 1
                 virtual_time += duration_s
         print('reader thread done')
@@ -242,7 +244,6 @@ class AudioClient:
         Converts PCM to PyGame Sounds and plays them, tracking time and buffering.
         """
         pygame.mixer.init(frequency=self.sample_rate, size=-16, channels=2)
-        bytes_per_frame = 4.0  # 16-bit * 2 channels
 
         while True:
             if not self.running and self.audio_queue.empty():
@@ -254,7 +255,6 @@ class AudioClient:
                 continue
 
             try:
-                # i, duration_s, sound = self.audio_queue.get(timeout=0.1)
                 i, duration_s, sound = self.audio_queue.get(timeout=0.1)
             except queue.Empty:
                 continue
@@ -291,8 +291,7 @@ class AudioClient:
     # -------------
     def pause(self):
         """
-        pause the playback
-        :return:
+        pause and resume the playback
         """
         self.playing = not self.playing
 
@@ -317,7 +316,6 @@ class AudioClient:
                     added.append(t[0])
 
             for item in old_queue:
-
                 if item[0] not in added and item[0] > first[0]:
                     self.audio_queue.put(item)
                     added.append(item[0])

@@ -114,12 +114,17 @@ if __name__ == '__main__':
 
     print("\nPrinting all tables:")
     db.print_tables()
-    """album_id = 1
-    length = get_ogg_duration("2.ogg")
-    sample_rate = get_sample_rate('2.ogg')
-    pages = count_ogg_pages('2.ogg')
-    song_id = db.create_song(album_id, "The Boy With The Thorn In His Side", "The Smiths", length, sample_rate, pages)"""
-    """# Create an album.
+
+    """
+    album_id = db.create_album("Dire Straits (Remastered)", "Dire Straits", "dire_straits_remastered.jpg")
+    length = get_ogg_duration("5.ogg")
+    sample_rate = get_sample_rate('5.ogg')
+    pages = count_ogg_pages('5.ogg')
+    song_id = db.create_song(album_id, "Sultans of Swing", "Dire Straits", length, sample_rate, pages)
+    """
+
+    """
+    # Create an album.
     album_id = db.create_album("Album Title", "Album Author", "cover.jpg")
     print("Created Album ID:", album_id)
 
@@ -133,9 +138,9 @@ if __name__ == '__main__':
 
     # Add the song to the playlist.
     db.add_song_to_playlist(song_id, playlist_id, index=1)
-    print("Added song to playlist")
+    print("Added song to playlist")"""
 
-    # Print all tables and their contents."""
+    # Print all tables and their contents.
 
     db.close()
 
