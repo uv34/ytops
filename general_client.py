@@ -2,113 +2,180 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import messagebox
-import hashlib
 import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
 
-SERVER_IP = "127.0.0.1"  # adjust as needed
+SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
 
-class Client:
-    def __init__(self, master):
-        self.master = master
-        self.master.title("Login/Register Client")
+class LoginRegisterWindow(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Login/Register")
         self.client_socket = None
-        self.build_ui()
+        self.login_success = False
+        self.logged_in_username = None
 
-    def build_ui(self):
-        self.frame = tk.Frame(self.master)
-        self.frame.pack(padx=10, pady=10)
+        # Create frames for login and registration
+        self.login_frame = tk.Frame(self)
+        self.register_frame = tk.Frame(self)
 
-        tk.Label(self.frame, text="Username:").grid(row=0, column=0, sticky=tk.E)
-        self.username_entry = tk.Entry(self.frame)
-        self.username_entry.grid(row=0, column=1)
+        self.build_login_ui()
+        self.build_register_ui()
 
-        tk.Label(self.frame, text="Password:").grid(row=1, column=0, sticky=tk.E)
-        self.password_entry = tk.Entry(self.frame, show="*")
-        self.password_entry.grid(row=1, column=1)
+        self.show_login_frame()
 
-        self.login_button = tk.Button(self.frame, text="Login", command=self.login)
-        self.login_button.grid(row=2, column=0, pady=5)
+    def build_login_ui(self):
+        """Build the login UI with username and password entries and buttons."""
+        frame = self.login_frame
+        # Pack is called in the show function, so we don't pack here immediately.
+        tk.Label(frame, text="Username:").grid(row=0, column=0, sticky=tk.E)
+        self.login_username_entry = tk.Entry(frame)
+        self.login_username_entry.grid(row=0, column=1)
 
-        self.register_button = tk.Button(self.frame, text="Register", command=self.register)
-        self.register_button.grid(row=2, column=1, pady=5)
+        tk.Label(frame, text="Password:").grid(row=1, column=0, sticky=tk.E)
+        self.login_password_entry = tk.Entry(frame, show="*")
+        self.login_password_entry.grid(row=1, column=1)
+
+        login_button = tk.Button(frame, text="Login", command=self.login)
+        login_button.grid(row=2, column=0, columnspan=2, pady=5)
+
+        switch_to_register = tk.Button(frame, text="Go to Register", command=self.show_register_frame)
+        switch_to_register.grid(row=3, column=0, columnspan=2, pady=5)
+
+    def build_register_ui(self):
+        """Build the registration UI with username, email, and password entries."""
+        frame = self.register_frame
+        tk.Label(frame, text="Username:").grid(row=0, column=0, sticky=tk.E)
+        self.register_username_entry = tk.Entry(frame)
+        self.register_username_entry.grid(row=0, column=1)
+
+        tk.Label(frame, text="Email:").grid(row=1, column=0, sticky=tk.E)
+        self.register_email_entry = tk.Entry(frame)
+        self.register_email_entry.grid(row=1, column=1)
+
+        tk.Label(frame, text="Password:").grid(row=2, column=0, sticky=tk.E)
+        self.register_password_entry = tk.Entry(frame, show="*")
+        self.register_password_entry.grid(row=2, column=1)
+
+        register_button = tk.Button(frame, text="Register", command=self.register)
+        register_button.grid(row=3, column=0, columnspan=2, pady=5)
+
+        back_to_login = tk.Button(frame, text="Back to Login", command=self.show_login_frame)
+        back_to_login.grid(row=4, column=0, columnspan=2, pady=5)
+
+    def show_login_frame(self):
+        """Show the login frame and hide the registration frame."""
+        self.register_frame.pack_forget()
+        self.login_frame.pack(padx=10, pady=10)
+
+    def show_register_frame(self):
+        """Show the registration frame and hide the login frame."""
+        self.login_frame.pack_forget()
+        self.register_frame.pack(padx=10, pady=10)
 
     def connect(self):
-        try:
-            self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client_socket.connect((SERVER_IP, SERVER_PORT))
-        except Exception as e:
-            messagebox.showerror("Connection Error", f"Could not connect to server: {e}")
-            return False
+        """Establish a connection to the server if not already connected."""
+        if self.client_socket is None:
+            try:
+                self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.client_socket.connect((SERVER_IP, SERVER_PORT))
+            except Exception as e:
+                messagebox.showerror("Connection Error", f"Could not connect to server: {e}")
+                return False
         return True
 
-    def hash_password(self, password):
-        # Simple SHA256 hash; in production, use a proper salted hash
-        return hashlib.sha256(password.encode()).hexdigest()
-
     def send_receive(self, cmd, data):
-        # Create and send the message using the protocol functions
+        """Send a message using the protocol and wait for a response."""
         msg = protocol.create_msg(cmd, data)
         self.client_socket.send(msg)
-        # Wait for the response from the server
         response_cmd, response_data = protocol.get_msg(self.client_socket)
-        return response_cmd, response_data
+        return response_cmd, response_data.decode()
 
     def login(self):
-        username = self.username_entry.get().strip()
-        password = self.password_entry.get().strip()
+        """Gather login credentials and send a login request."""
+        username = self.login_username_entry.get().strip()
+        password = self.login_password_entry.get().strip()
+
         if not username or not password:
             messagebox.showwarning("Input Error", "Please enter both username and password.")
             return
 
-        hashed_password = self.hash_password(password)
-        data = f"{username}~{hashed_password}".encode()
+        if not self.connect():
+            return
 
-        # Connect to the server if not already connected
-        if self.client_socket is None:
-            if not self.connect():
-                return
+        data = f"{username}~{password}".encode()
+        threading.Thread(target=self.handle_login, args=(data, username)).start()
 
-        # Use a thread so the UI remains responsive
-        threading.Thread(target=self.handle_login, args=(data,)).start()
-
-    def handle_login(self, data):
+    def handle_login(self, data, username):
         try:
             cmd, response = self.send_receive("LOGI", data)
             if "successful" in response.lower():
+                self.login_success = True
+                self.logged_in_username = username
                 messagebox.showinfo("Login", response)
+                self.destroy()  # Ends the mainloop for login
             else:
                 messagebox.showerror("Login Failed", response)
         except Exception as e:
             messagebox.showerror("Error", f"Error during login: {e}")
 
     def register(self):
-        username = self.username_entry.get().strip()
-        password = self.password_entry.get().strip()
-        if not username or not password:
-            messagebox.showwarning("Input Error", "Please enter both username and password.")
+        """Gather registration credentials and send a registration request."""
+        username = self.register_username_entry.get().strip()
+        email = self.register_email_entry.get().strip()
+        password = self.register_password_entry.get().strip()
+
+        if not username or not email or not password:
+            messagebox.showwarning("Input Error", "Please fill in username, email, and password.")
             return
 
-        hashed_password = self.hash_password(password)
-        data = f"{username}~{hashed_password}".encode()
+        if not self.connect():
+            return
 
-        if self.client_socket is None:
-            if not self.connect():
-                return
+        data = f"{username}~{email}~{password}".encode()
+        threading.Thread(target=self.handle_register, args=(data,username)).start()
 
-        threading.Thread(target=self.handle_register, args=(data,)).start()
-
-    def handle_register(self, data):
+    def handle_register(self, data, username):
         try:
             cmd, response = self.send_receive("REGI", data)
             if "successful" in response.lower():
                 messagebox.showinfo("Registration", response)
+                self.login_success = True
+                self.logged_in_username = username
+                self.destroy()  # Ends the mainloop for login
             else:
                 messagebox.showerror("Registration Failed", response)
         except Exception as e:
             messagebox.showerror("Error", f"Error during registration: {e}")
 
-if __name__ == '__main__':
-    root = tk.Tk()
-    client_app = Client(root)
-    root.mainloop()
+class MainWindow(tk.Tk):
+    """
+    The main window that appears after a successful login.
+    """
+    def __init__(self, username):
+        super().__init__()
+        self.title("Main Window")
+        self.username = username
+        self.build_ui()
+
+    def build_ui(self):
+        tk.Label(self, text=f"Hello, {self.username}!").pack(padx=20, pady=20)
+        logout_button = tk.Button(self, text="Exit", command=self.quit)
+        logout_button.pack(pady=5)
+
+def run_login_register_window():
+    app = LoginRegisterWindow()
+    app.mainloop()
+    return app.login_success, app.logged_in_username
+
+def run_main_window(username):
+    main_app = MainWindow(username)
+    main_app.mainloop()
+
+def main():
+    success, user = run_login_register_window()
+    if success and user:
+        run_main_window(user)
+
+if __name__ == "__main__":
+    main()

@@ -20,7 +20,11 @@ def log(direction, client_id, message):  # log the recv and send messages
     print(f'{direction} {client_id}: {message}')
 
 
-def check_creds(data):  # check if the data is valid
+def check_creds_regi(data):  # check if the data is valid
+    return data.count(b'~') == 2 and len(data) > 0
+
+
+def check_creds_logi(data):  # check if the data is valid
     return data.count(b'~') == 1 and len(data) > 0
 
 
@@ -29,15 +33,15 @@ def login_user(username, hashed_password):  # login the user
     return id, status
 
 
-def register_user(username, hashed_password):  # register the user
-    id, status = db.add_user(username, hashed_password, 'uv@gmail.com')
+def register_user(username, email, hashed_password):  # register the user
+    id, status = db.add_user(username, hashed_password, email)
     return id, status
 
 
 def handle_login(data, client_socket):
     username, hashed_password = data.decode().split('~')
 
-    if not check_creds(data):
+    if not check_creds_logi(data):
         return False, b'contains invalid characters'
     id, status = login_user(username, hashed_password)
     if status != '0':
@@ -48,11 +52,11 @@ def handle_login(data, client_socket):
 
 
 def handle_register(data, client_socket):
-    username, hashed_password = data.decode().split('~')
+    username, email, hashed_password = data.decode().split('~')
 
-    if not check_creds(data):
+    if not check_creds_regi(data):
         return False, b'contains invalid characters'
-    id, status = register_user(username, hashed_password)
+    id, status = register_user(username, email, hashed_password)
     if status != '0':
         client_users[client_socket] = User(id, username, status)
         return True, b'login successful'

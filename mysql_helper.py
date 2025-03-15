@@ -1,5 +1,5 @@
 from operator import length_hint
-
+import bcrypt
 import mysql.connector
 from ogg_handler import get_ogg_duration, get_sample_rate, count_ogg_pages
 
@@ -104,42 +104,56 @@ class DBController:
             print("-" * 40)
         cursor.close()
 
-    def login_user(self, username, password):
+    def login_user(self, username, plain_password):
         cursor = self.conn.cursor()
-
-        # 1) Look for matching credentials
-        login_query = """SELECT id, status FROM `user` WHERE username = %s AND password = %s LIMIT 1"""
-        cursor.execute(login_query, (username, password))
+        cursor.execute("SELECT id, password, status FROM `user` WHERE username = %s LIMIT 1", (username,))
         result = cursor.fetchone()
-
+        cursor.close()
         if not result:
-            return -1, '0'
+            return -1, '0'  # User not found
 
-        user_id, user_status = result
-        return user_id, user_status
+        user_id, stored_hash, user_status = result
 
-    def add_user(self, username, password, email):
+        # Verify the password using bcrypt
+        if user_id and bcrypt.checkpw(plain_password.encode('utf-8'), stored_hash.encode('utf-8')):
+            return user_id, user_status
+        else:
+            return -1, '0'  # Invalid credentials
+
+    def add_user(self, username, plain_password, email):
         cursor = self.conn.cursor()
 
         # 1) Check if user already exists
-        check_query = """SELECT COUNT(*)  FROM `user` WHERE username = %s  OR email = %s"""
-        cursor.execute(check_query, (username, email))
-        (existing_count,) = cursor.fetchone()
-
-        if existing_count > 0:
-            return -1, '0'
-
-        # 2) Insert new user
+        cursor.execute("SELECT COUNT(*) FROM `user` WHERE username = %s OR email = %s", (username, email))
+        if cursor.fetchone()[0] > 0:
+            return "ERROR: Username or email already exists."
+        # Generate the hash (bcrypt automatically creates a salt)
+        hashed_password = bcrypt.hashpw(plain_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user_status = 'r'
-        insert_query = """INSERT INTO `user` (username, email, password, create_time, status)
-                    VALUES (%s, %s, %s, NOW(), %s)"""
-        cursor.execute(insert_query, (username, email, password, user_status))
+        # Insert the new user into the database
+        insert_query = "INSERT INTO `user` (username, email, password, create_time, status) VALUES (%s, %s, %s, NOW(), %s)"
+        cursor.execute(insert_query, (username, email, hashed_password, user_status))
         self.conn.commit()
 
-        # 3) Retrieve the new user’s id and status
         new_user_id = cursor.lastrowid
-
+        cursor.close()
         return new_user_id, user_status  # Return tuple: (id, status)
+
+    def print_users(self):
+        """
+        Prints all users from the 'user' table in the database.
+        """
+        cursor = self.conn.cursor(dictionary=True)
+        query = "SELECT * FROM `user`"
+        cursor.execute(query)
+        users = cursor.fetchall()
+        if users:
+            print("Users:")
+            for user in users:
+                print(f"ID: {user['id']}, Username: {user['username']}, Email: {user['email']}, Status: {user['status']}, Created: {user['create_time']}")
+        else:
+            print("No users found.")
+        cursor.close()
 
     def close(self):
         self.conn.close()
@@ -151,7 +165,7 @@ if __name__ == '__main__':
 
     print("\nPrinting all tables:")
     db.print_tables()
-
+    db.print_users()
     """
     album_id = db.create_album("Dire Straits (Remastered)", "Dire Straits", "dire_straits_remastered.jpg")
     length = get_ogg_duration("5.ogg")
