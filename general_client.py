@@ -3,9 +3,11 @@ import threading
 import tkinter as tk
 from tkinter import messagebox
 import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
+import client_ui_2
 
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
+
 
 class LoginRegisterWindow(tk.Tk):
     def __init__(self):
@@ -148,6 +150,7 @@ class LoginRegisterWindow(tk.Tk):
         except Exception as e:
             messagebox.showerror("Error", f"Error during registration: {e}")
 
+
 class MainWindow(tk.Tk):
     """
     The main window that appears after a successful login.
@@ -163,19 +166,21 @@ class MainWindow(tk.Tk):
         logout_button = tk.Button(self, text="Exit", command=self.quit)
         logout_button.pack(pady=5)
 
+
 def run_login_register_window():
     app = LoginRegisterWindow()
     app.mainloop()
     return app.login_success, app.logged_in_username
 
-def run_main_window(username):
-    main_app = MainWindow(username)
-    main_app.mainloop()
+
 
 def main():
     success, user = run_login_register_window()
     if success and user:
-        run_main_window(user)
+        tk._default_root = None  # reset the default root
+        main_app = client_ui_2.AudioClientApp()
+        main_app.mainloop()
+
 
 if __name__ == "__main__":
     main()
