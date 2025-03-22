@@ -55,7 +55,7 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.db = DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
+        self.db = DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
         self.stop_events = {}
 
     def start_server(self):

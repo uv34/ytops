@@ -8,7 +8,7 @@ from sys import exit
 import mysql_helper
 
 client_users = {}  # socket: user
-db = mysql_helper.DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
+db = mysql_helper.DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
 
 SECRET_KEY = 'very‑strong‑secret-key'
 
