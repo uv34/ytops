@@ -16,6 +16,7 @@ class LoginRegisterWindow(tk.Tk):
         self.client_socket = None
         self.login_success = False
         self.logged_in_username = None
+        self.token = '###'
 
         # Create frames for login and registration
         self.login_frame = tk.Frame(self)
@@ -110,10 +111,12 @@ class LoginRegisterWindow(tk.Tk):
 
     def handle_login(self, data, username):
         try:
-            cmd, response = self.send_receive("LOGI", data)
+            cmd, data = self.send_receive("LOGI", data)
+            response, token = data.split('~')
             if "successful" in response.lower():
                 self.login_success = True
                 self.logged_in_username = username
+                self.token = token
                 messagebox.showinfo("Login", response)
                 self.destroy()  # Ends the mainloop for login
             else:
@@ -139,11 +142,13 @@ class LoginRegisterWindow(tk.Tk):
 
     def handle_register(self, data, username):
         try:
-            cmd, response = self.send_receive("REGI", data)
+            cmd, data = self.send_receive("REGI", data)
+            response, token = data.split('~')
             if "successful" in response.lower():
                 messagebox.showinfo("Registration", response)
                 self.login_success = True
                 self.logged_in_username = username
+                self.token = token
                 self.destroy()  # Ends the mainloop for login
             else:
                 messagebox.showerror("Registration Failed", response)
@@ -170,14 +175,15 @@ class MainWindow(tk.Tk):
 def run_login_register_window():
     app = LoginRegisterWindow()
     app.mainloop()
-    return app.login_success, app.logged_in_username
+    return app.login_success, app.logged_in_username, app.token
 
 
 
 def main():
-    success, user = run_login_register_window()
+    success, user, token = run_login_register_window()
     if success and user:
         tk._default_root = None  # reset the default root
+        print(token)
         main_app = client_ui_2.AudioClientApp()
         main_app.mainloop()
 

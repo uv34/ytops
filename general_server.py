@@ -1,13 +1,16 @@
+import datetime
 import socket
 import threading
+import jwt
 import protocol
 import random
 from sys import exit
 import mysql_helper
 
 client_users = {}  # socket: user
-db = mysql_helper.DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
+db = mysql_helper.DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
 
+SECRET_KEY = 'very‑strong‑secret-key'
 
 class User:  # the way the server is saving the users
     def __init__(self, id, username, status):
@@ -46,21 +49,24 @@ def handle_login(data, client_socket):
     id, status = login_user(username, hashed_password)
     if status != '0':
         client_users[client_socket] = User(id, username, status)
-        return True, b'login successful'
+        token = generate_token(id)
+        print(f'token generated: {token}')
+        return True, b'login successful~' + token.encode()
 
-    return False, b'password or username incorrect'
+    return False, b'password or username incorrect~###'
 
 
 def handle_register(data, client_socket):
     username, email, hashed_password = data.decode().split('~')
 
     if not check_creds_regi(data):
-        return False, b'contains invalid characters'
+        return False, b'contains invalid characters~###'
     id, status = register_user(username, email, hashed_password)
     if status != '0':
         client_users[client_socket] = User(id, username, status)
-        return True, b'login successful'
-    return False, b'username already exists'
+        token = generate_token(id)
+        return True, b'login successful~' + token.encode()
+    return False, b'username already exists~###'
 
 
 def handle_cmd(client_socket, cmd, data):  # handle cmd
@@ -77,6 +83,21 @@ def send_msg(client_socket, cmd, data):  # send the message to the client
     msg = protocol.create_msg(cmd, data)
     client_socket.send(msg)
     log('Sent', client_socket, msg)
+
+
+def generate_token(user_id):
+    payload = {
+        "sub": user_id,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+def verify_token(token):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return payload["sub"]
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
 
 
 def recv_msg(client_socket):  # send the message to the client
