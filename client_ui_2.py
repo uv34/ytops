@@ -10,12 +10,12 @@ def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
 
 class AudioClientApp(tk.Tk):
-    def __init__(self):
+    def __init__(self, token):
         super().__init__()
         self.title("Ogg Vorbis Client (YouTube-like Slider)")
         self.geometry("400x150")
         self.resizable(False, False)
-
+        self.token = token
         style = ttk.Style(self)
         style.theme_use("clam")
         #cover
@@ -213,7 +213,7 @@ class AudioClientApp(tk.Tk):
         def run():
             try:
                 self.update_status("Connecting to server...")
-                self.client.ask_for_song(song_id, time)
+                self.client.ask_for_song(song_id, time, self.token)
                 self.update_status(f"Requesting {song_id}, time={time}")
                 self.client.receive_stream()
                 self.update_status("Stream ended.")

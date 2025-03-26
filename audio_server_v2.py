@@ -3,14 +3,18 @@ import threading
 import os
 import time
 import struct
+import token
+
 import pyogg
 import protocol
 import pickle
 import base64
 from mysql_helper import DBController
 from ogg_handler import *
+from general_server import verify_token
 
 CHUNK_SIZE = 8192
+SECRET_KEY = 'very‑strong‑secret-key'
 DELAY = 0  # artificial delay
 
 
@@ -55,7 +59,7 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.db = DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
+        self.db = DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
         self.stop_events = {}
 
     def start_server(self):
@@ -91,13 +95,19 @@ class OggServer:
             return
 
         parts = data.decode().split('~')
-        if len(parts) != 2:
-            print("Bad request format: must be 'song.ogg~time'")
+        if len(parts) != 3:
+            print("Bad request format: must be 'token~song.ogg~time'")
             conn.sendall(protocol.create_msg("ERR ", b"Bad request"))
             conn.close()
             return
 
-        song_id, t_str = parts
+        tok, song_id, t_str = parts
+        payload = verify_token(tok)
+        if not payload:
+            conn.sendall(protocol.create_msg("ERR ", b"invalid token b"))
+            print('invalid token')
+            return
+        print(f"playing for user {str(payload['user'])}")
         asked_time = float(t_str)
 
         song = self.db.get_song(song_id)

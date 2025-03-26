@@ -1,6 +1,8 @@
 import datetime
 import socket
 import threading
+import time
+
 import jwt
 import protocol
 import random
@@ -8,7 +10,7 @@ from sys import exit
 import mysql_helper
 
 client_users = {}  # socket: user
-db = mysql_helper.DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
+db = mysql_helper.DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
 
 SECRET_KEY = 'very‑strong‑secret-key'
 
@@ -87,17 +89,17 @@ def send_msg(client_socket, cmd, data):  # send the message to the client
 
 def generate_token(user_id):
     payload = {
-        "sub": user_id,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+        "user": user_id,
     }
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 def verify_token(token):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        return payload["sub"]
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-        return None
+        return payload
+    except Exception as e:
+        print('invalid token')
+        return False
 
 
 def recv_msg(client_socket):  # send the message to the client
@@ -122,7 +124,7 @@ def handle_client(client_socket, client_id, addr):
         if status:
             break
 
-    while True:
+    while True:  # wait for user requests
         try:
             cmd, data = recv_msg(client_socket)
             handle_cmd(client_socket, cmd, data)
