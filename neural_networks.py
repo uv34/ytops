@@ -11,10 +11,10 @@ import sys
 # --------------------------
 # Path Variables
 # --------------------------
-AUDIO_DIR = r'C:\Users\uv\Downloads\fma_small\fma_small'  # Directory with audio files
+AUDIO_DIR = r'C:\Users\uv\Downloads\fma_small\fma_small'  # Directory with audio files OMER NIG
 ECHONEST_CSV = r'C:\Users\uv\Downloads\fma_metadata\fma_metadata\echonest.csv'  # Echonest CSV with 3-level header
 NEW_SONG_PATH = r'songs/1.ogg'  # Test song path
-FIXED_FRAMES = 130  # Fixed time frames for each spectrogram
+FIXED_FRAMES = 130  # Fixed time frames for each spectrogram GER
 
 # --------------------------
 # Neural Network Base Classes

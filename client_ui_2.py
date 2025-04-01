@@ -31,19 +31,26 @@ class AudioClientApp(tk.Tk):
         self.song_entry.insert(0, "1")
         self.song_entry.grid(row=0, column=2, padx=5, pady=5)
 
-        self. song_info_label = tk.Label(self, text="song name\n author")
+        self.song_info_label = tk.Label(self, text="song name\n author")
         self.song_info_label.grid(row=1, column=1, columnspan=2, sticky='', padx=5, pady=5)
+
+        self.middle_frame = tk.Frame(self, bg='#cccccc', height=240, width=380)
+        self.middle_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=4)
+        self.middle_frame.grid_remove()
 
         # Buttons
         self.start_button = tk.Button(self, text="Start/Stop", command=self.start_button)
-        self.start_button.grid(row=2, column=1, sticky='e', padx=5, pady=5)
+        self.start_button.grid(row=3, column=1, sticky='e', padx=5, pady=5)
 
         self.pause_button = tk.Button(self, text="Pause/Resume", command=self.pause_stream, state=tk.DISABLED)
-        self.pause_button.grid(row=2, column=2, sticky='w', padx=5, pady=5)
+        self.pause_button.grid(row=3, column=2, sticky='w', padx=5, pady=5)
+
+        self.toggle_button = tk.Button(self, text="Ham", command=self.toggle_middle_frame)
+        self.toggle_button.grid(row=3, column=3, sticky='w', padx=5, pady=5)
 
         # Canvas that will serve as our slider
         self.slider_canvas = tk.Canvas(self, width=300, height=10, bg=self.cget("bg"), highlightthickness=0)
-        self.slider_canvas.grid(row=3, column=1, columnspan=2, padx=5, pady=(10,5))
+        self.slider_canvas.grid(row=4, column=1, columnspan=2, padx=5, pady=(10,5))
         # Bind <Configure> so we know when the canvas size is finalized
         self.slider_canvas.bind("<Configure>", self.on_canvas_configure)
 
@@ -56,10 +63,10 @@ class AudioClientApp(tk.Tk):
 
         # Playback time label
         self.current_playback_label = tk.Label(self, text="0:00")
-        self.current_playback_label.grid(row=3, column=0, padx=10)
+        self.current_playback_label.grid(row=4, column=0, padx=10)
 
         self.total_playback_label = tk.Label(self, text="0:00")
-        self.total_playback_label.grid(row=3, column=3, padx=10)
+        self.total_playback_label.grid(row=4, column=3, padx=10)
 
 
         # Internal state
@@ -70,6 +77,14 @@ class AudioClientApp(tk.Tk):
         self.downloaded_time = 0.0
         self.played_time = 0.0
 
+    def toggle_middle_frame(self):
+        if self.middle_frame.winfo_ismapped():
+            self.middle_frame.grid_remove()
+            self.geometry("400x150")
+        else:
+            self.geometry("400x400")
+            self.middle_frame.grid()
+            # todo: ask the server for your songs and playlists and then display them here
 
     def on_canvas_configure(self, event):
         print('event', event)
@@ -106,7 +121,7 @@ class AudioClientApp(tk.Tk):
             width=bar_height,
             fill="#cccccc"
         )
-        # Draw played portion (red)
+        # Draw played portion
         self.slider_canvas.create_line(
             handle_radius, center_y,
             played_x + handle_radius, center_y,

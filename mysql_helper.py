@@ -150,7 +150,7 @@ class DBController:
         if users:
             print("Users:")
             for user in users:
-                print(f"ID: {user['id']}, Username: {user['username']}, Email: {user['email']}, Status: {user['status']}, Created: {user['create_time']}")
+                print(user)
         else:
             print("No users found.")
         cursor.close()
@@ -161,7 +161,7 @@ class DBController:
 
 # Example usage:
 if __name__ == '__main__':
-    db = DBController(host="192.168.1.30", user="stopify", password="stop123", database="mydb")
+    db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
 
     print("\nPrinting all tables:")
     db.print_tables()
