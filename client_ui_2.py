@@ -80,6 +80,59 @@ class AudioClientApp(tk.Tk):
         self.downloaded_time = 0.0
         self.played_time = 0.0
 
+    def click_song_frame(self, event):
+        self.stop_stream()
+        self.start_after_stop(event.widget.song_id)
+
+    def start_after_stop(self, song_id):
+        if self.stream_thread and self.stream_thread.is_alive():
+            self.after(100, self.start_after_stop, song_id)
+        else:
+            self.start_stream(song_id)
+
+    def display_songs_horizontaly(self, songs, inner_frame):
+        for col, (song_id, song_data) in enumerate(songs.items()):
+            name, author, album, coverdatab64 = song_data
+
+            # Song block
+            song_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
+            song_frame.song_id = song_id
+            song_frame.grid(row=0, column=col, padx=5, pady=5)
+
+            # Cover image
+            cover_data = base64.b64decode(coverdatab64)
+            image = Image.open(io.BytesIO(cover_data))
+            image.thumbnail((100, 100))
+            photo = ImageTk.PhotoImage(image)
+
+            label_image = tk.Label(song_frame, image=photo, bg="#CCCCCC")
+            label_image.image = photo  # prevent GC
+            label_image.song_id = song_id
+            label_image.grid(row=0, column=0)
+
+            # Title
+            label_title = tk.Label(song_frame, text=name, bg="#CCCCCC")
+            label_title.song_id = song_id
+            label_title.grid(row=1, column=0)
+
+            song_frame.bind("<Button-1>", self.click_song_frame)
+            label_title.bind("<Button-1>", self.click_song_frame)
+            label_image.bind("<Button-1>", self.click_song_frame)
+
+    def fetch_and_display(self):
+        try:
+            self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
+            msg, data = protocol.get_msg(self.gen_socket)
+            songs = json.loads(data)
+            print("Fetched songs")
+
+            # Schedule UI updates in main thread
+            self.after(0, lambda: self.show_songs(songs))
+
+        except Exception as e:
+            print(f"Error fetching songs: {e}")
+            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+
     def toggle_middle_frame(self):
         if self.middle_frame.winfo_ismapped():
             self.middle_frame.grid_remove()
@@ -88,56 +141,30 @@ class AudioClientApp(tk.Tk):
             self.geometry("400x400")
             self.middle_frame.grid()
 
-            # Fetch song data
-            self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
-            msg, data = protocol.get_msg(self.gen_socket)
-            songs = json.loads(data)
-            print(songs)
+            threading.Thread(target=self.fetch_and_display, daemon=True).start()
 
-            # Clear previous content
-            for widget in self.middle_frame.winfo_children():
-                widget.destroy()
+    def show_songs(self, songs):
+        # Clear previous content
+        for widget in self.middle_frame.winfo_children():
+            widget.destroy()
 
-            # Scrollable canvas (styled to blend in)
-            canvas = tk.Canvas(self.middle_frame, height=120, bg="#CCCCCC")
-            canvas.grid(row=0, column=0, sticky="nsew")
+        # Scrollable canvas
+        canvas = tk.Canvas(self.middle_frame, height=120, bg="#CCCCCC")
+        canvas.grid(row=0, column=0, sticky="nsew")
 
-            # Horizontal scrollbar
-            h_scrollbar = tk.Scrollbar(self.middle_frame, orient="horizontal", command=canvas.xview)
-            h_scrollbar.grid(row=1, column=0, sticky="ew")
-            canvas.configure(xscrollcommand=h_scrollbar.set)
+        h_scrollbar = tk.Scrollbar(self.middle_frame, orient="horizontal", command=canvas.xview)
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+        canvas.configure(xscrollcommand=h_scrollbar.set)
 
-            # Frame inside canvas (this is what scrolls)
-            inner_frame = tk.Frame(canvas, bg="#CCCCCC")
-            canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+        inner_frame = tk.Frame(canvas, bg="#CCCCCC")
+        canvas.create_window((0, 0), window=inner_frame, anchor="nw")
 
-            # Resize canvas scrollregion when content changes
-            def on_configure(event):
-                canvas.configure(scrollregion=canvas.bbox("all"))
+        def on_configure(event):  # update the canvas when its being scrolled
+            canvas.configure(scrollregion=canvas.bbox("all"))
 
-            inner_frame.bind("<Configure>", on_configure)
+        inner_frame.bind("<Configure>", on_configure)
 
-            # Add songs horizontally
-            for col, (song_id, song_data) in enumerate(songs.items()):
-                name, author, album, coverdatab64 = song_data
-
-                # Song block
-                song_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
-                song_frame.grid(row=0, column=col, padx=5, pady=5)
-
-                # Cover image
-                cover_data = base64.b64decode(coverdatab64)
-                image = Image.open(io.BytesIO(cover_data))
-                image.thumbnail((100, 100))
-                photo = ImageTk.PhotoImage(image)
-
-                label_image = tk.Label(song_frame, image=photo, bg="#CCCCCC")
-                label_image.image = photo  # prevent GC
-                label_image.grid(row=0, column=0)
-
-                # Title
-                label_title = tk.Label(song_frame, text=name, bg="#CCCCCC")
-                label_title.grid(row=1, column=0)
+        self.display_songs_horizontaly(songs, inner_frame)
 
     def on_canvas_configure(self, event):
         print('event', event)
@@ -263,14 +290,14 @@ class AudioClientApp(tk.Tk):
                 self.stop_stream()
                 return
         print('start stream')
-        self.start_stream()
+        self.start_stream(self.song_entry.get())
 
-    def start_stream(self):
+    def start_stream(self, id):
         if self.stream_thread and self.stream_thread.is_alive():
             messagebox.showinfo("Info", "Already streaming!")
             return
 
-        song_id = self.song_entry.get()
+        song_id = id
         time = 0
 
         self.client = AudioClient()
