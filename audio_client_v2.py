@@ -49,6 +49,7 @@ class AudioClient:
         self.port = port
         self.chunk_size = chunk_size
         self.sock = None
+        self.token = '###'
 
         self.song_id = None
         self.song_name = ''
@@ -87,15 +88,16 @@ class AudioClient:
     # -------------
     # Main request
     # -------------
-    def ask_for_song(self, song_id: str, t: float):
+    def ask_for_song(self, song_id: str, t: float, token: str):
         """
         connects to the server, sends "RQST" with data = "song_id~t".
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
         print('connected')
-        req_str = f"{song_id}~{t}"
+        req_str = f"{token}~{song_id}~{t}"
         self.song_id = song_id
+        self.token = token
         print(f'{self.sock} is asking for {song_id} in {t}')
 
         msg = protocol.create_msg("RQST", req_str.encode())
@@ -271,7 +273,7 @@ class AudioClient:
         self.real_stop()
         if self.in_song:
             print('asking from', self.played_time)
-            self.ask_for_song(self.song_id, self.played_time)
+            self.ask_for_song(self.song_id, self.played_time, self.token)
             self.receive_stream()
 
         print('stopped playback')

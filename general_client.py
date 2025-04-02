@@ -26,8 +26,7 @@ class LoginRegisterWindow(tk.Tk):
     def destroy1(self):
         for after_id in self.tk.call('after', 'info'):
             self.after_cancel(after_id)
-        if self.client_socket:
-            self.client_socket.close()
+
         super().destroy()
 
     def build_login_ui(self):
@@ -133,14 +132,15 @@ class MainWindow(tk.Tk):
 def run_login_register_window():
     app = LoginRegisterWindow()
     app.mainloop()
-    return app.login_success, app.logged_in_username, app.token
+    return app.login_success, app.logged_in_username, app.token, app.client_socket
 
 def main():
-    success, user, token = run_login_register_window()
+    success, user, token, sock = run_login_register_window()
     if success and user:
         tk._default_root = None
         print(token)
-        client_ui_2.AudioClientApp().mainloop()
+        client_ui_2.AudioClientApp(token, sock).mainloop()
+
 
 if __name__ == "__main__":
     main()

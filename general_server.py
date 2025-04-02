@@ -2,12 +2,12 @@ import datetime
 import socket
 import threading
 import time
+import base64
 import json
 import jwt
 import protocol
 import random
 from sys import exit
-import base64
 import mysql_helper
 
 client_users = {}  # socket: user
@@ -75,16 +75,16 @@ def handle_register(data, client_socket):
 def handle_recm(data, payload):
     # todo: generate recommendations for user
     songs = {} #  id: song info(e.g. name, author, cover, album)
-    for i in range(5):
-        song = db.get_song(i)
-        album = db.get_album(i)
+    for i in range(1,6):
+        print(i)
+        song = db.get_song(str(i))
+        album = db.get_album(song['album_id'])
         songs[i] = (song['name'], song['author'], album['name'])
         with open(f'covers/{album["cover"]}', 'rb') as f:
             cover_data = f.read()
         cover_b64 = base64.b64encode(cover_data).decode('utf-8')
         songs[i] = (song['name'], song['author'], album['name'], cover_b64)
-        return json.dumps(songs)
-
+    return json.dumps(songs).encode()
 
 
 
@@ -94,6 +94,7 @@ def handle_cmd(payload, cmd, data):  # handle cmd
         response = actions[cmd](data, payload)
     else:
         response = False, b'invalid command'
+    print(json.loads(response))
     return response
 
 
@@ -111,6 +112,7 @@ def generate_token(user_id):
 
 def verify_token(token):
     try:
+        print('checking token', token)
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         return payload
     except Exception as e:
@@ -136,10 +138,10 @@ def handle_client(client_socket, client_id, addr):
             status, response = False, b'invalid command'
 
         send_msg(client_socket, cmd, response)
-
+        print("status", status)
         if status:
             break
-
+    print('started main loop')
     while True:  # wait for user requests
         try:
             cmd, data = recv_msg(client_socket)
@@ -150,7 +152,7 @@ def handle_client(client_socket, client_id, addr):
                 response = handle_cmd(payload, cmd, data)
                 msg = protocol.create_msg(cmd, response)
                 client_socket.send(msg)
-        except Exception as e:
+        except Exception as e: # change to more specific
             print(f'Error: {e}')
             break
 
