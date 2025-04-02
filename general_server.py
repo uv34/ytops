@@ -1,14 +1,17 @@
 import datetime
 import socket
 import threading
+import time
+import json
 import jwt
 import protocol
 import random
 from sys import exit
+import base64
 import mysql_helper
 
 client_users = {}  # socket: user
-db = mysql_helper.DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
+db = mysql_helper.DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
 
 SECRET_KEY = 'very‑strong‑secret-key'
 
@@ -69,11 +72,26 @@ def handle_register(data, client_socket):
     return False, b'username already exists~###'
 
 
-def handle_cmd(client_socket, cmd, data):  # handle cmd
-    actions = {}  # cmd : action
-    credential_actions = {}  # cmd : action, only for register and login
+def handle_recm(data, payload):
+    # todo: generate recommendations for user
+    songs = {} #  id: song info(e.g. name, author, cover, album)
+    for i in range(5):
+        song = db.get_song(i)
+        album = db.get_album(i)
+        songs[i] = (song['name'], song['author'], album['name'])
+        with open(f'covers/{album["cover"]}', 'rb') as f:
+            cover_data = f.read()
+        cover_b64 = base64.b64encode(cover_data).decode('utf-8')
+        songs[i] = (song['name'], song['author'], album['name'], cover_b64)
+        return json.dumps(songs)
+
+
+
+
+def handle_cmd(payload, cmd, data):  # handle cmd
+    actions = {"RECM": handle_recm}  # cmd : action
     if cmd in actions:
-        response = actions[cmd](data)
+        response = actions[cmd](data, payload)
     else:
         response = False, b'invalid command'
     return response
@@ -87,17 +105,17 @@ def send_msg(client_socket, cmd, data):  # send the message to the client
 
 def generate_token(user_id):
     payload = {
-        "sub": user_id,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+        "user": user_id,
     }
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 def verify_token(token):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        return payload["sub"]
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-        return None
+        return payload
+    except Exception as e:
+        print('invalid token')
+        return False
 
 
 def recv_msg(client_socket):  # send the message to the client
@@ -122,10 +140,16 @@ def handle_client(client_socket, client_id, addr):
         if status:
             break
 
-    while True:
+    while True:  # wait for user requests
         try:
             cmd, data = recv_msg(client_socket)
-            handle_cmd(client_socket, cmd, data)
+            token = data.split(b'~')[0]
+            payload = verify_token(token)
+            if payload:
+                data = data[1:]
+                response = handle_cmd(payload, cmd, data)
+                msg = protocol.create_msg(cmd, response)
+                client_socket.send(msg)
         except Exception as e:
             print(f'Error: {e}')
             break
