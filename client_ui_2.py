@@ -1,3 +1,4 @@
+import queue
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -64,14 +65,8 @@ class AudioClientApp(tk.Tk):
         self.cover_label = tk.Label(self, image=self.cover_tk, )
         self.cover_label.grid(row=0, column=0, columnspan=2, sticky='w', rowspan=2, padx=10, pady=10)
 
-        # Song
-        tk.Label(self, text="Song:").grid(row=0, column=1, sticky='e', padx=5, pady=5)
-        self.song_entry = tk.Entry(self)
-        self.song_entry.insert(0, "1")
-        self.song_entry.grid(row=0, column=2, padx=5, pady=5)
-
         self.song_info_label = tk.Label(self, text="song name\n author")
-        self.song_info_label.grid(row=1, column=1, columnspan=2, sticky='', padx=5, pady=5)
+        self.song_info_label.grid(row=0, rowspan=2, column=1, columnspan=2, sticky='', padx=5, pady=5)
 
         self.middle_frame = tk.Frame(self, height=240, width=380)
         self.middle_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=4)
@@ -111,14 +106,22 @@ class AudioClientApp(tk.Tk):
         # Internal state
         self.client = None
         self.stream_thread = None
+        self.song_queue = queue.Queue()
 
         self.total_time = 1.0
         self.downloaded_time = 0.0
         self.played_time = 0.0
 
     def click_song_frame(self, event):
-        self.stop_stream()
-        self.start_after_stop(event.widget.song_id)
+        """self.stop_stream()
+        self.start_after_stop(event.widget.song_id)"""
+        if not self.stream_thread:
+            self.stop_stream()
+            self.start_after_stop(event.widget.song_id)
+        else:
+            self.song_queue.put(event.widget.song_id)
+        print("queue", list(self.song_queue.queue))
+
 
     def start_after_stop(self, song_id):
         if self.stream_thread and self.stream_thread.is_alive():
@@ -142,7 +145,7 @@ class AudioClientApp(tk.Tk):
             photo = ImageTk.PhotoImage(image)
 
             label_image = tk.Label(song_frame, image=photo, bg="#CCCCCC")
-            label_image.image = photo  # prevent GC
+            label_image.image = photo  # prevent
             label_image.song_id = song_id
             label_image.grid(row=0, column=0)
 
@@ -356,8 +359,12 @@ class AudioClientApp(tk.Tk):
                 self.update_status(f"Error: {e}")
                 print(f"ErroRRRR")
             finally:
-                self.pause_button.config(state=tk.DISABLED)
-                self.stream_thread = None
+                print('final')
+                if not self.song_queue.empty():
+                    self.start_after_stop(self.song_queue.get())
+                else:
+                    self.pause_button.config(state=tk.DISABLED)
+                    self.stream_thread = None
 
         # Start background thread to avoid blocking UI
         self.stream_thread = threading.Thread(target=run, daemon=True)
