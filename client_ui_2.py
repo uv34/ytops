@@ -7,8 +7,44 @@ import socket
 import protocol
 from audio_client_v2 import AudioClient
 import base64, json
+
 def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
+
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip_window = None
+        # Bindings
+        self.widget.bind("<Enter>", self.show_tip)
+        self.widget.bind("<Leave>", self.hide_tip)
+
+    def show_tip(self, event=None):
+        # Avoid showing if the tip window already exists or if there is no text
+        if self.tip_window or not self.text:
+            return
+        # Calculate the position of the tooltip
+        x, y, cx, cy = self.widget.bbox("insert") if self.widget.bbox("insert") else (0, 0, 0, 0)
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 20
+
+        # Create a top-level window to act as the tooltip
+        self.tip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)  # Remove window decorations
+        tw.wm_geometry(f"+{x}+{y}")
+
+        label = tk.Label(tw, text=self.text, justify=tk.LEFT,
+                         background="#aaaaaa", relief=tk.SOLID, borderwidth=1,
+                         font=("tahoma", "8", "normal"))
+        label.pack(ipadx=1)
+
+    def hide_tip(self, event=None):
+        # Destroy the tooltip window if it exists
+        if self.tip_window:
+            self.tip_window.destroy()
+            self.tip_window = None
+
 
 class AudioClientApp(tk.Tk):
     def __init__(self, token, gen_sock):
@@ -111,8 +147,10 @@ class AudioClientApp(tk.Tk):
             label_image.grid(row=0, column=0)
 
             # Title
-            label_title = tk.Label(song_frame, text=name, bg="#CCCCCC")
+            nn = name if len(name) < 12 else f"{name[:10]}..."
+            label_title = tk.Label(song_frame, text=nn, bg="#CCCCCC")
             label_title.song_id = song_id
+            ToolTip(label_title, name)
             label_title.grid(row=1, column=0)
 
             song_frame.bind("<Button-1>", self.click_song_frame)

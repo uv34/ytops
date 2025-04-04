@@ -5,7 +5,7 @@ from tkinter import messagebox
 import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
 import client_ui_2
 
-SERVER_IP = "192.168.1.20"
+SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
 
 class LoginRegisterWindow(tk.Tk):
