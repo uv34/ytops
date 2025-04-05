@@ -115,7 +115,7 @@ class AudioClientApp(tk.Tk):
         self.cover_label.grid(row=0, column=0, columnspan=2, sticky='w', rowspan=2, padx=10, pady=10)
 
         self.song_info_label = tk.Label(self, text="song name\n author")
-        self.song_info_label.grid(row=0, rowspan=2, column=2, columnspan=2, sticky='', padx=5, pady=5)
+        self.song_info_label.grid(row=0, rowspan=2, column=2, columnspan=3, sticky='w', padx=5, pady=5)
 
         self.middle_frame = tk.Frame(self, height=240, width=380)
         self.middle_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=5)
@@ -163,6 +163,7 @@ class AudioClientApp(tk.Tk):
         self.stream_thread = None
         self.song_queue = SongQueue()
         self.volume = 1
+        self.skipped = False
 
         self.total_time = 1.0
         self.downloaded_time = 0.0
@@ -385,6 +386,7 @@ class AudioClientApp(tk.Tk):
         self.pause_button.config(state=tk.DISABLED)
 
     def start_button(self):
+        self.skipped = True
         self.song_queue.next()
         if self.client:
             if self.stream_thread:
@@ -429,6 +431,9 @@ class AudioClientApp(tk.Tk):
                 print('q', self.song_queue.queue)
                 print('h', self.song_queue.history)
                 print('c', self.song_queue.current_song)
+                if not self.skipped:
+                    self.song_queue.next()
+                self.skipped = False
                 if self.song_queue.current_song:
                     self.start_after_stop(self.song_queue.current_song)
                 else:
