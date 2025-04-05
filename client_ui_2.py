@@ -394,6 +394,7 @@ class AudioClientApp(tk.Tk):
                 return
 
     def prev_button(self):
+        self.skipped = True
         self.song_queue.prev()
         if self.client:
             if self.stream_thread:
