@@ -3,112 +3,21 @@ import socket
 import threading
 import time
 import base64
-import json
+import pickle
 import jwt
 import protocol
 import random
 from sys import exit
 import mysql_helper
-
-client_users = {}  # socket: user
-db = mysql_helper.DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
+from song import Song
 
 SECRET_KEY = 'very‑strong‑secret-key'
 
-class User:  # the way the server is saving the users
-    def __init__(self, id, username, status):
-        self.id = id
-        self.username = username
-        self.status = status
-
-
-def log(direction, client_id, message):  # log the recv and send messages
-    print(f'{direction} {client_id}: {message}')
-
-
-def check_creds_regi(data):  # check if the data is valid
-    return data.count(b'~') == 2 and len(data) > 0
-
-
-def check_creds_logi(data):  # check if the data is valid
-    return data.count(b'~') == 1 and len(data) > 0
-
-
-def login_user(username, hashed_password):  # login the user
-    id, status = db.login_user(username, hashed_password)
-    return id, status
-
-
-def register_user(username, email, hashed_password):  # register the user
-    id, status = db.add_user(username, hashed_password, email)
-    return id, status
-
-
-def handle_login(data, client_socket):
-    username, hashed_password = data.decode().split('~')
-
-    if not check_creds_logi(data):
-        return False, b'contains invalid characters'
-    id, status = login_user(username, hashed_password)
-    if status != '0':
-        client_users[client_socket] = User(id, username, status)
-        token = generate_token(id)
-        print(f'token generated: {token}')
-        return True, b'login successful~' + token.encode()
-
-    return False, b'password or username incorrect~###'
-
-
-def handle_register(data, client_socket):
-    username, email, hashed_password = data.decode().split('~')
-
-    if not check_creds_regi(data):
-        return False, b'contains invalid characters~###'
-    id, status = register_user(username, email, hashed_password)
-    if status != '0':
-        client_users[client_socket] = User(id, username, status)
-        token = generate_token(id)
-        return True, b'login successful~' + token.encode()
-    return False, b'username already exists~###'
-
-
-def handle_recm(data, payload):
-    # todo: generate recommendations for user
-    songs = {} #  id: song info(e.g. name, author, cover, album)
-    for i in range(1,6):
-        print(i)
-        song = db.get_song(str(i))
-        album = db.get_album(song['album_id'])
-        songs[i] = (song['name'], song['author'], album['name'])
-        with open(f'covers/{album["cover"]}', 'rb') as f:
-            cover_data = f.read()
-        cover_b64 = base64.b64encode(cover_data).decode('utf-8')
-        songs[i] = (song['name'], song['author'], album['name'], cover_b64)
-    return json.dumps(songs).encode()
-
-
-
-def handle_cmd(payload, cmd, data):  # handle cmd
-    actions = {"RECM": handle_recm}  # cmd : action
-    if cmd in actions:
-        response = actions[cmd](data, payload)
-    else:
-        response = False, b'invalid command'
-    print(json.loads(response))
-    return response
-
-
-def send_msg(client_socket, cmd, data):  # send the message to the client
-    msg = protocol.create_msg(cmd, data)
-    client_socket.send(msg)
-    log('Sent', client_socket, msg)
-
 
 def generate_token(user_id):
-    payload = {
-        "user": user_id,
-    }
+    payload = {"user": user_id}
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
 
 def verify_token(token):
     try:
@@ -119,74 +28,146 @@ def verify_token(token):
         print('invalid token')
         return False
 
+class User:
+    def __init__(self, id, username, status):
+        self.id = id
+        self.username = username
+        self.status = status
 
-def recv_msg(client_socket):  # send the message to the client
-    cmd, data = protocol.get_msg(client_socket)
-    log('Received', client_socket, f'{cmd} {data}')
-    return cmd, data
 
+class StopifyServer:
+    def __init__(self, host="0.0.0.0", port=5001):
+        self.host = host
+        self.port = port
+        self.client_users = {}
+        self.threads = []
+        self.db = mysql_helper.DBController(
+            host="192.168.1.20", user="stopify", password="stop123", database="mydb"
+        )
 
-def handle_client(client_socket, client_id, addr):
-    global threads
-    while True:
-        cmd, data = recv_msg(client_socket)
-        if cmd == 'REGI':
-            status, response = handle_register(data, client_socket)
-        elif cmd == 'LOGI':
-            status, response = handle_login(data, client_socket)
+    def log(self, direction, client_id, message):
+        print(f'{direction} {client_id}: {message}')
+
+    def check_creds_regi(self, data):
+        return data.count(b'~') == 2 and len(data) > 0
+
+    def check_creds_logi(self, data):
+        return data.count(b'~') == 1 and len(data) > 0
+
+    def login_user(self, username, hashed_password):
+        id, status = self.db.login_user(username, hashed_password)
+        return id, status
+
+    def register_user(self, username, email, hashed_password):
+        id, status = self.db.add_user(username, hashed_password, email)
+        return id, status
+
+    def send_msg(self, client_socket, cmd, data):
+        msg = protocol.create_msg(cmd, data)
+        client_socket.send(msg)
+        self.log('Sent', client_socket, msg)
+
+    def recv_msg(self, client_socket):
+        cmd, data = protocol.get_msg(client_socket)
+        self.log('Received', client_socket, f'{cmd} {data}')
+        return cmd, data
+
+    def handle_login(self, data, client_socket):
+        if not self.check_creds_logi(data):
+            return False, b'contains invalid characters'
+        username, hashed_password = data.decode().split('~')
+        id, status = self.login_user(username, hashed_password)
+        if status != '0':
+            self.client_users[client_socket] = User(id, username, status)
+            token = generate_token(id)
+            print(f'token generated: {token}')
+            return True, b'login successful~' + token.encode()
+        return False, b'password or username incorrect~###'
+
+    def handle_register(self, data, client_socket):
+        if not self.check_creds_regi(data):
+            return False, b'contains invalid characters~###'
+        username, email, hashed_password = data.decode().split('~')
+        id, status = self.register_user(username, email, hashed_password)
+        if status != '0':
+            self.client_users[client_socket] = User(id, username, status)
+            token = generate_token(id)
+            return True, b'login successful~' + token.encode()
+        return False, b'username already exists~###'
+
+    def handle_recm(self, data, payload):
+        songs = []
+        for i in range(1, 6):
+            print(i)
+            song = self.db.get_song(str(i))
+            album = self.db.get_album(song['album_id'])
+            with open(f'covers/{album["cover"]}', 'rb') as f:
+                cover_data = f.read()
+            cover_b64 = base64.b64encode(cover_data).decode('utf-8')
+            songs.append(Song(i, song['name'], song['author'], album['name'], cover_b64))
+        return pickle.dumps(songs)
+
+    def handle_cmd(self, payload, cmd, data):
+        actions = {"RECM": self.handle_recm}
+        if cmd in actions:
+            response = actions[cmd](data, payload)
         else:
-            status, response = False, b'invalid command'
+            response = False, b'invalid command'
+        print(pickle.loads(response))
+        return response
 
-        send_msg(client_socket, cmd, response)
-        print("status", status)
-        if status:
-            break
-    print('started main loop')
-    while True:  # wait for user requests
-        try:
-            cmd, data = recv_msg(client_socket)
-            token = data.split(b'~')[0]
-            payload = verify_token(token)
-            if payload:
-                data = data[1:]
-                response = handle_cmd(payload, cmd, data)
-                msg = protocol.create_msg(cmd, response)
-                client_socket.send(msg)
-        except Exception as e: # change to more specific
-            print(f'Error: {e}')
-            break
+    def handle_client(self, client_socket, client_id, addr):
+        while True:
+            cmd, data = self.recv_msg(client_socket)
+            if cmd == 'REGI':
+                status, response = self.handle_register(data, client_socket)
+            elif cmd == 'LOGI':
+                status, response = self.handle_login(data, client_socket)
+            else:
+                status, response = False, b'invalid command'
 
-    threads.remove(threading.current_thread())
+            self.send_msg(client_socket, cmd, response)
+            print("status", status)
+            if status:
+                break
 
+        print('started main loop')
+        while True:
+            try:
+                cmd, data = self.recv_msg(client_socket)
+                token = data.split(b'~')[0]
+                payload = verify_token(token)
+                if payload:
+                    data = data[1:]
+                    response = self.handle_cmd(payload, cmd, data)
+                    msg = protocol.create_msg(cmd, response)
+                    client_socket.send(msg)
+            except Exception as e:
+                print(f'Error: {e}')
+                break
 
-def main():
-    communication()  # with fortnite
+        self.threads.remove(threading.current_thread())
 
+    def run(self):
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind((self.host, self.port))
+        server_socket.listen(0)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        print("Server is up and running")
 
-def communication():
-    global threads
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(("0.0.0.0", 5001))
-    server_socket.listen(0)
-    print("Server is up and running")
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    i = 1
-    while True:
-        print('Main thread: before accepting ...')
-        client_socket, addr = server_socket.accept()
-        t = threading.Thread(target=handle_client, args=(client_socket, str(i).zfill(4), addr))
-        t.start()
-        i += 1
-        threads.append(t)
-        """if i > 4:
-            print('Main thread: going down for maintenance')
-            break"""
+        i = 1
+        while True:
+            print('Main thread: before accepting ...')
+            client_socket, addr = server_socket.accept()
+            t = threading.Thread(target=self.handle_client, args=(client_socket, str(i).zfill(4), addr))
+            t.start()
+            self.threads.append(t)
+            i += 1
 
-    print("Closing server")
-
-    server_socket.close()
+        print("Closing server")
+        server_socket.close()
 
 
 if __name__ == '__main__':
-    threads = []
-    main()
+    server = StopifyServer()
+    server.run()

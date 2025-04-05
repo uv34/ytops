@@ -7,7 +7,8 @@ import io
 import socket
 import protocol
 from audio_client_v2 import AudioClient
-import base64, json
+import base64, pickle
+from song import Song, SongQueue
 
 def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
@@ -73,7 +74,10 @@ class AudioClientApp(tk.Tk):
         self.middle_frame.grid_remove()
 
         # Buttons
-        self.start_button = tk.Button(self, text="Start/Stop", command=self.start_button)
+        self.prev_button = tk.Button(self, text="Prev", command=self.prev_button)
+        self.prev_button.grid(row=3, column=0, sticky='w', padx=5, pady=5)
+
+        self.start_button = tk.Button(self, text="Next", command=self.start_button)
         self.start_button.grid(row=3, column=1, sticky='e', padx=5, pady=5)
 
         self.pause_button = tk.Button(self, text="Pause/Resume", command=self.pause_stream, state=tk.DISABLED)
@@ -106,7 +110,7 @@ class AudioClientApp(tk.Tk):
         # Internal state
         self.client = None
         self.stream_thread = None
-        self.song_queue = queue.Queue()
+        self.song_queue = SongQueue()
 
         self.total_time = 1.0
         self.downloaded_time = 0.0
@@ -115,12 +119,14 @@ class AudioClientApp(tk.Tk):
     def click_song_frame(self, event):
         """self.stop_stream()
         self.start_after_stop(event.widget.song_id)"""
+        self.song_queue.add_song(event.widget.song_id)
         if not self.stream_thread:
             self.stop_stream()
+            self.song_queue.next()
             self.start_after_stop(event.widget.song_id)
-        else:
-            self.song_queue.put(event.widget.song_id)
+
         print("queue", list(self.song_queue.queue))
+        print("history", list(self.song_queue.history))
 
 
     def start_after_stop(self, song_id):
@@ -130,30 +136,28 @@ class AudioClientApp(tk.Tk):
             self.start_stream(song_id)
 
     def display_songs_horizontaly(self, songs, inner_frame):
-        for col, (song_id, song_data) in enumerate(songs.items()):
-            name, author, album, coverdatab64 = song_data
-
+        for col, song in enumerate(songs):
             # Song block
             song_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
-            song_frame.song_id = song_id
+            song_frame.song_id = song.song_id
             song_frame.grid(row=0, column=col, padx=5, pady=5)
 
             # Cover image
-            cover_data = base64.b64decode(coverdatab64)
+            cover_data = base64.b64decode(song.coverb64)
             image = Image.open(io.BytesIO(cover_data))
             image.thumbnail((100, 100))
             photo = ImageTk.PhotoImage(image)
 
             label_image = tk.Label(song_frame, image=photo, bg="#CCCCCC")
             label_image.image = photo  # prevent
-            label_image.song_id = song_id
+            label_image.song_id = song.song_id
             label_image.grid(row=0, column=0)
 
             # Title
-            nn = name if len(name) < 12 else f"{name[:10]}..."
+            nn = song.name if len(song.name) < 12 else f"{song.name[:10]}..."
             label_title = tk.Label(song_frame, text=nn, bg="#CCCCCC")
-            label_title.song_id = song_id
-            ToolTip(label_title, name)
+            label_title.song_id = song.song_id
+            ToolTip(label_title, song.name)
             label_title.grid(row=1, column=0)
 
             song_frame.bind("<Button-1>", self.click_song_frame)
@@ -164,7 +168,7 @@ class AudioClientApp(tk.Tk):
         try:
             self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
             msg, data = protocol.get_msg(self.gen_socket)
-            songs = json.loads(data)
+            songs = pickle.loads(data)
             print("Fetched songs")
 
             # Schedule UI updates in main thread
@@ -326,12 +330,19 @@ class AudioClientApp(tk.Tk):
         self.pause_button.config(state=tk.DISABLED)
 
     def start_button(self):
+        self.song_queue.next()
         if self.client:
             if self.stream_thread:
                 self.stop_stream()
                 return
-        print('start stream')
-        self.start_stream(self.song_entry.get())
+
+    def prev_button(self):
+        self.song_queue.prev()
+        if self.client:
+            if self.stream_thread:
+                self.stop_stream()
+                return
+
 
     def start_stream(self, id):
         if self.stream_thread and self.stream_thread.is_alive():
@@ -360,9 +371,13 @@ class AudioClientApp(tk.Tk):
                 print(f"ErroRRRR")
             finally:
                 print('final')
-                if not self.song_queue.empty():
-                    self.start_after_stop(self.song_queue.get())
+                print('q', self.song_queue.queue)
+                print('h', self.song_queue.history)
+                print('c', self.song_queue.current_song)
+                if self.song_queue.current_song:
+                    self.start_after_stop(self.song_queue.current_song)
                 else:
+                    print('no song')
                     self.pause_button.config(state=tk.DISABLED)
                     self.stream_thread = None
 
