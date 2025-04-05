@@ -50,6 +50,7 @@ class AudioClient:
         self.chunk_size = chunk_size
         self.sock = None
         self.token = '###'
+        self.volume = 1
 
         self.song_id = None
         self.song_name = ''
@@ -88,6 +89,10 @@ class AudioClient:
     # -------------
     # Main request
     # -------------
+
+    def set_volume(self, volume):
+        self.volume = volume
+
     def ask_for_song(self, song_id: str, t: float, token: str):
         """
         connects to the server, sends "RQST" with data = "song_id~t".
@@ -261,6 +266,7 @@ class AudioClient:
             except queue.Empty:
                 continue
 
+            sound.set_volume(self.volume)
             sound.play()
 
             while pygame.mixer.get_busy() and self.playing:

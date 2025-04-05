@@ -13,6 +13,54 @@ from song import Song, SongQueue
 def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
 
+
+class VolumePopup:
+    def __init__(self, parent_widget, audio_app):
+        self.widget = parent_widget
+        self.popup = None
+        self.app = audio_app
+
+    def show(self):
+        if self.popup:
+            return  # Already showing
+
+        x = self.widget.winfo_rootx() + 25
+        y = self.widget.winfo_rooty() + 20
+
+        self.popup = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        tw.configure(bg="#aaaaaa")
+
+        # Close popup when focus is lost
+        tw.bind("<FocusOut>", lambda e: self.hide())
+
+        # Create volume slider inside popup
+        slider = ttk.Scale(
+            tw,
+            from_=0,
+            to=100,
+            orient="horizontal",
+            command=self.set_volume
+        )
+        slider.set(self.app.volume * 100)  # Set initial value
+        slider.pack(padx=10, pady=10)
+
+        tw.focus_set()  # Grab focus to auto-close when clicking outside
+
+    def set_volume(self, val):
+        volume = float(val)/100
+        self.app.volume = volume
+        if app.client:
+            print('volume', volume)
+            self.app.client.set_volume(volume)
+
+    def hide(self):
+        if self.popup:
+            self.popup.destroy()
+            self.popup = None
+
+
 class ToolTip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -67,28 +115,15 @@ class AudioClientApp(tk.Tk):
         self.cover_label.grid(row=0, column=0, columnspan=2, sticky='w', rowspan=2, padx=10, pady=10)
 
         self.song_info_label = tk.Label(self, text="song name\n author")
-        self.song_info_label.grid(row=0, rowspan=2, column=1, columnspan=2, sticky='', padx=5, pady=5)
+        self.song_info_label.grid(row=0, rowspan=2, column=2, columnspan=2, sticky='', padx=5, pady=5)
 
         self.middle_frame = tk.Frame(self, height=240, width=380)
-        self.middle_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=4)
+        self.middle_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=5)
         self.middle_frame.grid_remove()
-
-        # Buttons
-        self.prev_button = tk.Button(self, text="Prev", command=self.prev_button)
-        self.prev_button.grid(row=3, column=0, sticky='w', padx=5, pady=5)
-
-        self.start_button = tk.Button(self, text="Next", command=self.start_button)
-        self.start_button.grid(row=3, column=1, sticky='e', padx=5, pady=5)
-
-        self.pause_button = tk.Button(self, text="Pause/Resume", command=self.pause_stream, state=tk.DISABLED)
-        self.pause_button.grid(row=3, column=2, sticky='w', padx=5, pady=5)
-
-        self.toggle_button = tk.Button(self, text="Ham", command=self.toggle_middle_frame)
-        self.toggle_button.grid(row=3, column=3, sticky='w', padx=5, pady=5)
 
         # Canvas that will serve as our slider
         self.slider_canvas = tk.Canvas(self, width=300, height=10, bg=self.cget("bg"), highlightthickness=0)
-        self.slider_canvas.grid(row=4, column=1, columnspan=2, padx=5, pady=(10,5))
+        self.slider_canvas.grid(row=3, column=1, columnspan=3, padx=5, pady=(10,5))
         # Bind <Configure> so we know when the canvas size is finalized
         self.slider_canvas.bind("<Configure>", self.on_canvas_configure)
 
@@ -98,19 +133,36 @@ class AudioClientApp(tk.Tk):
         self.slider_canvas.bind("<ButtonRelease-1>", self.on_slider_release)
         self.dragging = False
 
-
         # Playback time label
         self.current_playback_label = tk.Label(self, text="0:00")
-        self.current_playback_label.grid(row=4, column=0, padx=10)
+        self.current_playback_label.grid(row=3, column=0, padx=10)
 
         self.total_playback_label = tk.Label(self, text="0:00")
-        self.total_playback_label.grid(row=4, column=3, padx=10)
+        self.total_playback_label.grid(row=3, column=4, padx=10)
 
+        # Buttons
+        self.volume_button = tk.Button(self, text="🔊")
+        self.volume_button.grid(row=4, column=0, sticky='e', padx=5, pady=5)
+        self.volume_popup = VolumePopup(self.volume_button, self)
+        self.volume_button.config(command=self.volume_popup.show)
+
+        self.prev_button = tk.Button(self, text="⏮", command=self.prev_button)
+        self.prev_button.grid(row=4, column=1, sticky='e', padx=5, pady=5)
+
+        self.pause_button = tk.Button(self, text="⏸︎", command=self.pause_stream, state=tk.DISABLED)
+        self.pause_button.grid(row=4, column=2, sticky='', padx=5, pady=5)
+
+        self.start_button = tk.Button(self, text="⏭", command=self.start_button)
+        self.start_button.grid(row=4, column=3, sticky='w', padx=5, pady=5)
+
+        self.toggle_button = tk.Button(self, text="☰", command=self.toggle_middle_frame)
+        self.toggle_button.grid(row=4, column=4, sticky='w', padx=5, pady=5)
 
         # Internal state
         self.client = None
         self.stream_thread = None
         self.song_queue = SongQueue()
+        self.volume = 1
 
         self.total_time = 1.0
         self.downloaded_time = 0.0
@@ -194,7 +246,7 @@ class AudioClientApp(tk.Tk):
             widget.destroy()
 
         # Scrollable canvas
-        canvas = tk.Canvas(self.middle_frame, height=120, bg="#CCCCCC")
+        canvas = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
         canvas.grid(row=0, column=0, sticky="nsew")
 
         h_scrollbar = tk.Scrollbar(self.middle_frame, orient="horizontal", command=canvas.xview)
@@ -203,6 +255,9 @@ class AudioClientApp(tk.Tk):
 
         inner_frame = tk.Frame(canvas, bg="#CCCCCC")
         canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+
+        canvas2 = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
+        canvas2.grid(row=2, column=0, sticky="nsew")
 
         def on_configure(event):  # update the canvas when its being scrolled
             canvas.configure(scrollregion=canvas.bbox("all"))
@@ -386,6 +441,7 @@ class AudioClientApp(tk.Tk):
         self.stream_thread.start()
 
         self.update_status("Attempting to stream...")
+        self.client.set_volume(self.volume)
         self.pause_button.config(state=tk.NORMAL)
         # Reset times
         self.total_time = 1.0
