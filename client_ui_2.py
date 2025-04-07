@@ -64,7 +64,7 @@ class AudioClientApp(tk.Tk):
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
         def on_configure2(event):  # update the canvas when its being scrolled
-            self.canvas2.configure(scrollregion=self.canvas.bbox("all"))
+            self.canvas2.configure(scrollregion=self.canvas2.bbox("all"))
 
         self.inner_frame.bind("<Configure>", on_configure)
         self.inner_frame2.bind("<Configure>", on_configure2)
@@ -140,6 +140,8 @@ class AudioClientApp(tk.Tk):
         for song in event.widget.playlist.songs:
             print('-----------------------------------------------------------------------')
             self.song_queue.add_song(song.song_id)
+        if not self.stream_thread:
+            self.song_queue.next()
         print(self.song_queue)
         self.start_after_stop(self.song_queue.current_song)
 

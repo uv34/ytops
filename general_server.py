@@ -111,7 +111,6 @@ class StopifyServer:
 
         playlists = self.db.get_playlists_by_user(id)
         playlists_list = []
-        songs_in_p = []
         for dict in playlists:
             pid = dict['id']
             name = dict['name']
@@ -119,13 +118,14 @@ class StopifyServer:
                 cover = f.read()
             coverb64 = base64.b64encode(cover)
             d = self.db.get_songs_in_playlist(pid)
+            songs_in_p = []
             for song in d:
                 album = self.db.get_album(song['album_id'])
                 s = Song(song['id'], song['name'], song['author'], album['name'], coverb64) # mabye change to the songs real cover
                 songs_in_p.append(s)
             playlist = Playlist(pid, name, coverb64, songs_in_p)
             playlists_list.append(playlist)
-        print('songs in playlist', songs_in_p)
+        print('songs in playlist', playlists_list)
 
         return pickle.dumps((songs, playlists_list))
 
