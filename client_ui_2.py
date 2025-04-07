@@ -9,91 +9,11 @@ import protocol
 from audio_client_v2 import AudioClient
 import base64, pickle
 from song import Song, SongQueue
+from custom_widgets import *
+
 
 def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
-
-
-class VolumePopup:
-    def __init__(self, parent_widget, audio_app):
-        self.widget = parent_widget
-        self.popup = None
-        self.app = audio_app
-
-    def show(self):
-        if self.popup:
-            return  # Already showing
-
-        x = self.widget.winfo_rootx() + 25
-        y = self.widget.winfo_rooty() + 20
-
-        self.popup = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
-        tw.configure(bg="#aaaaaa")
-
-        # Close popup when focus is lost
-        tw.bind("<FocusOut>", lambda e: self.hide())
-
-        # Create volume slider inside popup
-        slider = ttk.Scale(
-            tw,
-            from_=0,
-            to=100,
-            orient="horizontal",
-            command=self.set_volume
-        )
-        slider.set(self.app.volume * 100)  # Set initial value
-        slider.pack(padx=10, pady=10)
-
-        tw.focus_set()  # Grab focus to auto-close when clicking outside
-
-    def set_volume(self, val):
-        volume = float(val)/100
-        self.app.volume = volume
-        if app.client:
-            print('volume', volume)
-            self.app.client.set_volume(volume)
-
-    def hide(self):
-        if self.popup:
-            self.popup.destroy()
-            self.popup = None
-
-
-class ToolTip:
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tip_window = None
-        # Bindings
-        self.widget.bind("<Enter>", self.show_tip)
-        self.widget.bind("<Leave>", self.hide_tip)
-
-    def show_tip(self, event=None):
-        # Avoid showing if the tip window already exists or if there is no text
-        if self.tip_window or not self.text:
-            return
-        # Calculate the position of the tooltip
-        x, y, cx, cy = self.widget.bbox("insert") if self.widget.bbox("insert") else (0, 0, 0, 0)
-        x += self.widget.winfo_rootx() + 25
-        y += self.widget.winfo_rooty() + 20
-
-        # Create a top-level window to act as the tooltip
-        self.tip_window = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)  # Remove window decorations
-        tw.wm_geometry(f"+{x}+{y}")
-
-        label = tk.Label(tw, text=self.text, justify=tk.LEFT,
-                         background="#aaaaaa", relief=tk.SOLID, borderwidth=1,
-                         font=("tahoma", "8", "normal"))
-        label.pack(ipadx=1)
-
-    def hide_tip(self, event=None):
-        # Destroy the tooltip window if it exists
-        if self.tip_window:
-            self.tip_window.destroy()
-            self.tip_window = None
 
 
 class AudioClientApp(tk.Tk):
@@ -101,8 +21,8 @@ class AudioClientApp(tk.Tk):
         super().__init__()
         self.title("Ogg Vorbis Client (YouTube-like Slider)")
         self.geometry("400x150")
-        self.token = token
         self.resizable(False, False)
+        self.token = token
         self.gen_socket = gen_sock
 
         style = ttk.Style(self)
@@ -119,6 +39,35 @@ class AudioClientApp(tk.Tk):
 
         self.middle_frame = tk.Frame(self, height=240, width=380)
         self.middle_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=5)
+        self.canvas = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
+        self.canvas.grid(row=0, column=0, sticky="nsew", pady=10)
+
+        self.h_scrollbar = tk.Scrollbar(self.middle_frame, orient="horizontal", command=self.canvas.xview)
+        self.h_scrollbar.grid(row=1, column=0, sticky="ew", pady=10)
+        self.canvas.configure(xscrollcommand=self.h_scrollbar.set)
+
+        self.inner_frame = tk.Frame(self.canvas, bg="#CCCCCC")
+        self.canvas.create_window((0, 0), window=self.inner_frame, anchor="nw")
+
+        # Second canvas and its scrollbar
+        self.canvas2 = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
+        self.canvas2.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
+
+        self.h_scrollbar2 = tk.Scrollbar(self.middle_frame, orient="horizontal", command=self.canvas2.xview)
+        self.h_scrollbar2.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        self.canvas2.configure(xscrollcommand=self.h_scrollbar2.set)
+
+        self.inner_frame2 = tk.Frame(self.canvas2, bg="#CCCCCC")
+        self.canvas2.create_window((0, 0), window=self.inner_frame2, anchor="nw")
+
+        def on_configure(event):  # update the canvas when its being scrolled
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+        def on_configure2(event):  # update the canvas when its being scrolled
+            self.canvas2.configure(scrollregion=self.canvas.bbox("all"))
+
+        self.inner_frame.bind("<Configure>", on_configure)
+        self.inner_frame2.bind("<Configure>", on_configure2)
         self.middle_frame.grid_remove()
 
         # Canvas that will serve as our slider
@@ -164,6 +113,7 @@ class AudioClientApp(tk.Tk):
         self.song_queue = SongQueue()
         self.volume = 1
         self.skipped = False
+        self.playlists = []
 
         self.total_time = 1.0
         self.downloaded_time = 0.0
@@ -176,11 +126,44 @@ class AudioClientApp(tk.Tk):
         if not self.stream_thread:
             self.stop_stream()
             self.song_queue.next()
-            self.start_after_stop(event.widget.song_id)
+            self.start_after_stop(self.song_queue.current_song)
 
         print("queue", list(self.song_queue.queue))
         print("history", list(self.song_queue.history))
 
+    def click_playlist_frame(self, event):
+        """self.stop_stream()
+        self.start_after_stop(event.widget.song_id)"""
+        for song in event.widget.playlist.songs:
+            self.song_queue.add_song(song.song_id)
+        if not self.stream_thread:
+            self.stop_stream()
+            self.song_queue.next()
+            self.start_after_stop(self.song_queue.current_song)
+
+        print("queue", list(self.song_queue.queue))
+        print("history", list(self.song_queue.history))
+
+    def click_add_playlist(self, event):
+        PlaylistFrame(self)
+
+    def add_playlists_to_shown(self, playlist):
+        self.playlists.append(playlist)
+        self.display_playlists_horizontaly(self.playlists, self.inner_frame2)
+        print('added', playlist)
+
+    def create_playlist(self, name, cover_file):
+        with open(cover_file, "rb") as f:
+            coverb64 = base64.b64encode(f.read())
+        msg = protocol.create_msg("CRPL", f"{self.token}~{name}~{coverb64.decode()}".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "CRPL":
+            if data[:2].decode() == "OK":
+                self.add_playlists_to_shown(pickle.loads(data[2:]))
+                messagebox.showinfo("Success", "Playlist created successfully!")
+            else:
+                messagebox.showerror("Error", "Failed to create playlist.")
 
     def start_after_stop(self, song_id):
         if self.stream_thread and self.stream_thread.is_alive():
@@ -217,15 +200,65 @@ class AudioClientApp(tk.Tk):
             label_title.bind("<Button-1>", self.click_song_frame)
             label_image.bind("<Button-1>", self.click_song_frame)
 
+    def display_playlists_horizontaly(self, playlists, inner_frame):
+        self.playlists = playlists
+        for col, playlist in enumerate(playlists):
+            # Song block
+            playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
+            playlist_frame.playlist = playlist
+            playlist_frame.grid(row=0, column=col, padx=5, pady=5)
+
+            # Cover image
+            cover_data = base64.b64decode(playlist.coverb64)
+            image = Image.open(io.BytesIO(cover_data))
+            image.thumbnail((100, 100))
+            photo = ImageTk.PhotoImage(image)
+
+            label_image = tk.Label(playlist_frame, image=photo, bg="#CCCCCC")
+            label_image.image = photo  # prevent
+            label_image.playlist = playlist
+            label_image.grid(row=0, column=0)
+
+            # Title
+            nn = playlist.name if len(playlist.name) < 12 else f"{playlist.name[:10]}..."
+            label_title = tk.Label(playlist_frame, text=nn, bg="#CCCCCC")
+            label_title.playlist = playlist
+            ToolTip(label_title, playlist.name)
+            label_title.grid(row=1, column=0)
+
+            playlist_frame.bind("<Button-1>", self.click_playlist_frame)
+            label_title.bind("<Button-1>", self.click_playlist_frame)
+            label_image.bind("<Button-1>", self.click_playlist_frame)
+
+        add_playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
+        add_playlist_frame.grid(row=0, column=len(playlists), padx=5, pady=5)
+        # Cover image
+        image = Image.open("default.jpg")
+        image.thumbnail((100, 100))
+        photo = ImageTk.PhotoImage(image)
+
+        label_image = tk.Label(add_playlist_frame, image=photo, bg="#CCCCCC")
+        label_image.image = photo
+        label_image.grid(row=0, column=0)
+
+        # Title
+        label_title = tk.Label(add_playlist_frame, text='new', bg="#CCCCCC")
+        label_title.grid(row=1, column=0)
+
+        add_playlist_frame.bind("<Button-1>", self.click_add_playlist)
+        label_title.bind("<Button-1>", self.click_add_playlist)
+        label_image.bind("<Button-1>", self.click_add_playlist)
+
+
     def fetch_and_display(self):
         try:
             self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
             msg, data = protocol.get_msg(self.gen_socket)
-            songs = pickle.loads(data)
+            songs, playlists = pickle.loads(data)
             print("Fetched songs")
 
             # Schedule UI updates in main thread
-            self.after(0, lambda: self.show_songs(songs))
+            self.after(0, lambda: self.show_songs(songs, playlists))
 
         except Exception as e:
             print(f"Error fetching songs: {e}")
@@ -236,36 +269,17 @@ class AudioClientApp(tk.Tk):
             self.middle_frame.grid_remove()
             self.geometry("400x150")
         else:
-            self.geometry("400x400")
+            self.geometry("400x500")
             self.middle_frame.grid()
 
             threading.Thread(target=self.fetch_and_display, daemon=True).start()
 
-    def show_songs(self, songs):
-        # Clear previous content
-        for widget in self.middle_frame.winfo_children():
-            widget.destroy()
-
+    def show_songs(self, songs, playlists):
         # Scrollable canvas
-        canvas = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
-        canvas.grid(row=0, column=0, sticky="nsew")
 
-        h_scrollbar = tk.Scrollbar(self.middle_frame, orient="horizontal", command=canvas.xview)
-        h_scrollbar.grid(row=1, column=0, sticky="ew")
-        canvas.configure(xscrollcommand=h_scrollbar.set)
-
-        inner_frame = tk.Frame(canvas, bg="#CCCCCC")
-        canvas.create_window((0, 0), window=inner_frame, anchor="nw")
-
-        canvas2 = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
-        canvas2.grid(row=2, column=0, sticky="nsew")
-
-        def on_configure(event):  # update the canvas when its being scrolled
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        inner_frame.bind("<Configure>", on_configure)
-
-        self.display_songs_horizontaly(songs, inner_frame)
+        self.display_songs_horizontaly(songs, self.inner_frame)
+        if self.playlists != playlists:
+            self.display_playlists_horizontaly(playlists, self.inner_frame2)
 
     def on_canvas_configure(self, event):
         print('event', event)

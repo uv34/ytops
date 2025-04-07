@@ -9,7 +9,9 @@ import protocol
 import random
 from sys import exit
 import mysql_helper
-from song import Song
+import io
+from PIL import Image
+from song import Song, Playlist
 
 SECRET_KEY = 'very‑strong‑secret-key'
 
@@ -96,6 +98,7 @@ class StopifyServer:
         return False, b'username already exists~###'
 
     def handle_recm(self, data, payload):
+        id = payload['user']
         songs = []
         for i in range(1, 6):
             print(i)
@@ -103,17 +106,48 @@ class StopifyServer:
             album = self.db.get_album(song['album_id'])
             with open(f'covers/{album["cover"]}', 'rb') as f:
                 cover_data = f.read()
-            cover_b64 = base64.b64encode(cover_data).decode('utf-8')
+            cover_b64 = base64.b64encode(cover_data)
             songs.append(Song(i, song['name'], song['author'], album['name'], cover_b64))
-        return pickle.dumps(songs)
+
+        playlists = self.db.get_playlists_by_user(id)
+        playlists_list = []
+        for dict in playlists:
+            pid = dict['id']
+            name = dict['name']
+            with open(f'playlists/{pid}.jpg', 'rb') as f:
+                cover = f.read()
+            coverb64 = base64.b64encode(cover)
+            songs_in_p = []
+            d = self.db.get_songs_in_playlist(pid)
+            for song in d:
+                s = Song(song['id'], song['name'], song['author'], song['album'], coverb64) # mabye change to the songs real cover
+                songs_in_p.append(s)
+            playlist = Playlist(pid, name, coverb64, songs_in_p)
+            playlists_list.append(playlist)
+
+        return pickle.dumps((songs, playlists_list))
+
+    def handle_crpl(self, data, payload):
+        _, name, imageb64 = data.split(b'~')
+        user_id = payload['user']
+        playlist_id = self.db.create_playlist(user_id, name.decode())
+        img_bytes = io.BytesIO(base64.b64decode(imageb64))
+        img = Image.open(img_bytes)
+        img_resized = img.resize((64, 64))
+
+        output_stream = io.BytesIO()
+        img_resized.save(output_stream, format='JPEG')
+        resized_image_bytes = output_stream.getvalue()
+        with open(f'playlists/{playlist_id}.jpg', 'wb') as f:
+            f.write(resized_image_bytes)
+        return b'OK'+pickle.dumps(Playlist(playlist_id, name.decode(), base64.b64encode(resized_image_bytes)))
 
     def handle_cmd(self, payload, cmd, data):
-        actions = {"RECM": self.handle_recm}
+        actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:
             response = False, b'invalid command'
-        print(pickle.loads(response))
         return response
 
     def handle_client(self, client_socket, client_id, addr):

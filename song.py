@@ -12,6 +12,24 @@ class Song:
         return f"Song(id={self.song_id}, name='{self.name}', author='{self.author}', album='{self.album}', cover='{self.coverb64}')"
 
 
+class Playlist:
+    def __init__(self, playlist_id, name, cover, songs=[]):
+        self.playlist_id = playlist_id
+        self.name = name
+        self.songs = songs
+        self.coverb64 = cover
+
+    def add_song(self, song):
+        self.songs.append(song)
+
+    def remove_song(self, song):
+        if song in self.songs:
+            self.songs.remove(song)
+
+    def __repr__(self):
+        return f"Playlist(id={self.playlist_id}, name='{self.name}', cover='{self.coverb64}', songs='{self.songs}')"
+
+
 class SongQueue:
     def __init__(self):
         self.queue = []           # Songs to play next
