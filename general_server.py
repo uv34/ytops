@@ -111,19 +111,21 @@ class StopifyServer:
 
         playlists = self.db.get_playlists_by_user(id)
         playlists_list = []
+        songs_in_p = []
         for dict in playlists:
             pid = dict['id']
             name = dict['name']
             with open(f'playlists/{pid}.jpg', 'rb') as f:
                 cover = f.read()
             coverb64 = base64.b64encode(cover)
-            songs_in_p = []
             d = self.db.get_songs_in_playlist(pid)
             for song in d:
-                s = Song(song['id'], song['name'], song['author'], song['album'], coverb64) # mabye change to the songs real cover
+                album = self.db.get_album(song['album_id'])
+                s = Song(song['id'], song['name'], song['author'], album['name'], coverb64) # mabye change to the songs real cover
                 songs_in_p.append(s)
             playlist = Playlist(pid, name, coverb64, songs_in_p)
             playlists_list.append(playlist)
+        print('songs in playlist', songs_in_p)
 
         return pickle.dumps((songs, playlists_list))
 
@@ -142,8 +144,16 @@ class StopifyServer:
             f.write(resized_image_bytes)
         return b'OK'+pickle.dumps(Playlist(playlist_id, name.decode(), base64.b64encode(resized_image_bytes)))
 
+    def handle_astp(self, data, payload):
+        if not data.count(b'~') == 2:
+            return b'NO'
+        _, playlist_id, song_id = data.split(b'~')
+        if self.db.add_song_to_playlist(song_id.decode(), playlist_id.decode()):
+            return b'OK'
+        return b'NO'
+
     def handle_cmd(self, payload, cmd, data):
-        actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl}
+        actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:
@@ -167,18 +177,19 @@ class StopifyServer:
 
         print('started main loop')
         while True:
-            try:
-                cmd, data = self.recv_msg(client_socket)
-                token = data.split(b'~')[0]
-                payload = verify_token(token)
-                if payload:
-                    data = data[1:]
-                    response = self.handle_cmd(payload, cmd, data)
-                    msg = protocol.create_msg(cmd, response)
-                    client_socket.send(msg)
-            except Exception as e:
+            #  try:
+            cmd, data = self.recv_msg(client_socket)
+            token = data.split(b'~')[0]
+            payload = verify_token(token)
+            if payload:
+                data = data[1:]
+                response = self.handle_cmd(payload, cmd, data)
+                print('response:', response)
+                msg = protocol.create_msg(cmd, response)
+                client_socket.send(msg)
+            """except Exception as e:
                 print(f'Error: {e}')
-                break
+                break"""
 
         self.threads.remove(threading.current_thread())
 

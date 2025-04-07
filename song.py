@@ -65,6 +65,13 @@ class SongQueue:
     def empty(self):
         return len(self.queue) == 0
 
+    def clear(self):
+        self.queue = []
+        self.history = []
+        self.current_song = None
+
+    def __repr__(self):
+        return f"SongQueue(current_song={self.current_song}, queue={self.queue}, history={self.history})"
 
 if __name__ == "__main__":
     song1 = Song(1, "Imagine", "John LeBron", "Imagine", "cover1b64")

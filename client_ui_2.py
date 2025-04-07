@@ -122,7 +122,7 @@ class AudioClientApp(tk.Tk):
     def click_song_frame(self, event):
         """self.stop_stream()
         self.start_after_stop(event.widget.song_id)"""
-        self.song_queue.add_song(event.widget.song_id)
+        self.song_queue.add_song(event.widget.song.song_id)
         if not self.stream_thread:
             self.stop_stream()
             self.song_queue.next()
@@ -134,12 +134,14 @@ class AudioClientApp(tk.Tk):
     def click_playlist_frame(self, event):
         """self.stop_stream()
         self.start_after_stop(event.widget.song_id)"""
+        self.stop_stream()
+        self.skipped = True
+        self.song_queue.clear()
         for song in event.widget.playlist.songs:
+            print('-----------------------------------------------------------------------')
             self.song_queue.add_song(song.song_id)
-        if not self.stream_thread:
-            self.stop_stream()
-            self.song_queue.next()
-            self.start_after_stop(self.song_queue.current_song)
+        print(self.song_queue)
+        self.start_after_stop(self.song_queue.current_song)
 
         print("queue", list(self.song_queue.queue))
         print("history", list(self.song_queue.history))
@@ -171,11 +173,36 @@ class AudioClientApp(tk.Tk):
         else:
             self.start_stream(song_id)
 
+    def add_to_playlist(self, song, playlist):
+        print('add top playlist')
+        msg = protocol.create_msg("ASTP", f"{self.token}~{playlist.playlist_id}~{song.song_id}".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "ASTP":
+            if data[:2].decode() == "OK":
+                playlist.add_song(song)
+                messagebox.showinfo("Success", "Song added to playlist successfully!")
+                return
+        messagebox.showerror("Error", "Failed to add song to playlist.")
+
+
+    def show_song_action_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+
+        playlist_menu = tk.Menu(menu, tearoff=0)
+        for playlist in self.playlists:
+            playlist_menu.add_command(
+                label=playlist.name,
+                command=lambda x=playlist: self.add_to_playlist(event.widget.song, x)
+            )
+        menu.add_cascade(label="Add to Playlist", menu=playlist_menu)
+        menu.post(event.x_root, event.y_root)
+
     def display_songs_horizontaly(self, songs, inner_frame):
         for col, song in enumerate(songs):
             # Song block
             song_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
-            song_frame.song_id = song.song_id
+            song_frame.song = song
             song_frame.grid(row=0, column=col, padx=5, pady=5)
 
             # Cover image
@@ -186,19 +213,22 @@ class AudioClientApp(tk.Tk):
 
             label_image = tk.Label(song_frame, image=photo, bg="#CCCCCC")
             label_image.image = photo  # prevent
-            label_image.song_id = song.song_id
+            label_image.song = song
             label_image.grid(row=0, column=0)
 
             # Title
             nn = song.name if len(song.name) < 12 else f"{song.name[:10]}..."
             label_title = tk.Label(song_frame, text=nn, bg="#CCCCCC")
-            label_title.song_id = song.song_id
+            label_title.song = song
             ToolTip(label_title, song.name)
             label_title.grid(row=1, column=0)
 
             song_frame.bind("<Button-1>", self.click_song_frame)
             label_title.bind("<Button-1>", self.click_song_frame)
             label_image.bind("<Button-1>", self.click_song_frame)
+            song_frame.bind("<Button-3>", self.show_song_action_menu)
+            label_title.bind("<Button-3>", self.show_song_action_menu)
+            label_image.bind("<Button-3>", self.show_song_action_menu)
 
     def display_playlists_horizontaly(self, playlists, inner_frame):
         self.playlists = playlists

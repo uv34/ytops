@@ -99,30 +99,32 @@ class DBController:
         cursor.close()
         return playlist
 
-    def add_song_to_playlist(self, song_id, playlist_id, index):
+    def add_song_to_playlist(self, song_id, playlist_id):
         cursor = self.conn.cursor()
 
-        # First, determine the current count of songs in the playlist.
+        # Check if the song is already in the playlist
+        check_query = "SELECT COUNT(*) FROM songs_has_playlists WHERE songs_id = %s AND playlists_id = %s"
+        cursor.execute(check_query, (song_id, playlist_id))
+        exists = cursor.fetchone()[0]
+
+        if exists > 0:
+            print(f"Song {song_id} is already in playlist {playlist_id}.")
+            cursor.close()
+            return False
+
+        # Determine the current count of songs in the playlist.
         count_query = "SELECT COUNT(*) FROM songs_has_playlists WHERE playlists_id = %s"
         cursor.execute(count_query, (playlist_id,))
         current_count = cursor.fetchone()[0]
+        index = current_count + 1
 
-        # If the specified index is greater than the next available position, append at the end.
-        if index > current_count + 1:
-            index = current_count + 1
-
-        # Shift songs that are at or after the desired index.
-        shift_query = ("UPDATE songs_has_playlists "
-                       "SET `index` = `index` + 1 "
-                       "WHERE playlists_id = %s AND `index` >= %s")
-        cursor.execute(shift_query, (playlist_id, index))
-
-        # Insert the new song at the desired (or adjusted) index.
+        # Insert the new song at the adjusted index.
         insert_query = ("INSERT INTO songs_has_playlists (songs_id, playlists_id, `index`) "
                         "VALUES (%s, %s, %s)")
         cursor.execute(insert_query, (song_id, playlist_id, index))
         self.conn.commit()
         cursor.close()
+        return True
 
     def get_playlists_by_user(self, user_id):
         """

@@ -68,6 +68,40 @@ class PlaylistFrame:
         self.frame.destroy()
 
 
+class SongOptionsPopup:
+    def __init__(self, parent_widget, audio_app):
+        self.widget = parent_widget
+        self.popup = None
+        self.app = audio_app
+
+    def show(self):
+        if self.popup:
+            return  # Already showing
+
+        x = self.widget.winfo_rootx() + 25
+        y = self.widget.winfo_rooty() + 20
+
+        self.popup = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        tw.configure(bg="#aaaaaa")
+
+        # Close popup when focus is lost
+        tw.bind("<FocusOut>", lambda e: self.hide())
+        # Create volume button inside popup
+        volume_button = tk.Button(tw, text="Volume", command=self.show_volume_popup)
+        volume_button.pack(padx=10, pady=10)
+
+    def show_volume_popup(self):
+        if self.popup:
+            self.popup.hide()
+            VolumePopup(self.widget, self.app).show()
+
+    def hide(self):
+        if self.popup:
+            self.popup.destroy()
+            self.popup = None
+
 class VolumePopup:
     def __init__(self, parent_widget, audio_app):
         self.widget = parent_widget
