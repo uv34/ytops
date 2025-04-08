@@ -121,7 +121,11 @@ class StopifyServer:
             songs_in_p = []
             for song in d:
                 album = self.db.get_album(song['album_id'])
-                s = Song(song['id'], song['name'], song['author'], album['name'], coverb64) # mabye change to the songs real cover
+                cover_file = album['cover']
+                with open(f'covers/{cover_file}', 'rb') as f:
+                    song_cover = f.read()
+                song_coverb64 = base64.b64encode(song_cover)
+                s = Song(song['id'], song['name'], song['author'], album['name'], song_coverb64) # mabye change to the songs real cover
                 songs_in_p.append(s)
             playlist = Playlist(pid, name, coverb64, songs_in_p)
             playlists_list.append(playlist)

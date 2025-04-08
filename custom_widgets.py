@@ -2,7 +2,132 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
+import base64
+from song import *
+import io
 
+
+class PlaylistInfoFrame:
+    def __init__(self, parent, playlist):
+        self.parent = parent
+        self.playlist = playlist
+        self.frame_width = 300
+        self.frame_height = 350
+        self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
+        # List to hold references to song images to prevent garbage collection
+        self.song_images = []
+        self.create_widgets()
+        self.place_frame()
+
+    def create_widgets(self):
+        # --- Playlist Cover Image Section ---
+        self.image_frame = tk.Frame(self.frame, bg="#1e1e1e",
+                                    highlightthickness=2, highlightbackground="#666666",
+                                    width=150, height=150)
+        self.image_frame.place(relx=0.5, y=20, anchor="n")
+        self.image_frame.pack_propagate(False)
+
+        # Decode and load the playlist cover image
+        img_data = base64.b64decode(self.playlist.coverb64)
+        img = Image.open(io.BytesIO(img_data))
+        img.thumbnail((64, 64))
+        img_tk = ImageTk.PhotoImage(img)
+        self.image_label = tk.Label(self.image_frame, image=img_tk, bg="#1e1e1e")
+        self.image_label.image = img_tk  # Keep a reference!
+        self.image_label.pack(expand=True, fill="both")
+
+        # --- Playlist Title Section ---
+        self.title_label = tk.Label(self.frame, text=self.playlist.name,
+                                    bg="#1e1e1e", fg="white", font=("Arial", 12, "bold"))
+        self.title_label.place(relx=0.5, y=180, anchor="n", width=260)
+
+        # --- Scrollable Songs Section ---
+        # Create a canvas to hold the songs frame and attach a scrollbar
+        self.songs_canvas = tk.Canvas(self.frame, bg="#2e2e2e", highlightthickness=0)
+        self.songs_canvas.place(relx=0.5, y=210, anchor="n", width=240, height=100)
+
+        self.songs_scrollbar = tk.Scrollbar(self.frame, orient="vertical", command=self.songs_canvas.yview)
+        # Place the scrollbar near the canvas
+        self.songs_scrollbar.place(relx=0.9, y=210, anchor="n", height=100)
+        self.songs_canvas.configure(yscrollcommand=self.songs_scrollbar.set)
+
+        # Create a frame inside the canvas to hold the song rows
+        self.songs_frame = tk.Frame(self.songs_canvas, bg="#2e2e2e")
+        self.songs_canvas.create_window((0, 0), window=self.songs_frame, anchor="nw")
+
+        # Bind the configure event to update the scrollregion
+        self.songs_frame.bind("<Configure>",
+                              lambda e: self.songs_canvas.configure(scrollregion=self.songs_canvas.bbox("all")))
+
+        # Bind mousewheel events for scrolling
+        self.songs_canvas.bind("<Enter>", lambda e: self.bind_mousewheel())
+        self.songs_canvas.bind("<Leave>", lambda e: self.unbind_mousewheel())
+
+        # Populate the songs frame with a row for each song
+        for song in self.playlist.songs:
+            self.add_song_row(song)
+
+        # --- Cancel Button Section ---
+        self.cancel_button = tk.Button(self.frame, text="Cancel", bg="#3e3e3e", fg="white", width=10,
+                                       command=self.destroy)
+        self.cancel_button.place(relx=0.5, y=320, anchor="n")
+
+    def add_song_row(self, song):
+        # Container frame for a single song
+        row = tk.Frame(self.songs_frame, bg="#2e2e2e")
+        row.pack(fill="x", pady=2)
+
+        # Decode and load the song cover image
+        try:
+            img_data = base64.b64decode(song.coverb64)
+            song_img = Image.open(io.BytesIO(img_data))
+        except Exception:
+            # Fallback: Create a blank image if there's an error
+            song_img = Image.new("RGB", (40, 40), color="gray")
+        song_img.thumbnail((40, 40))
+        song_img_tk = ImageTk.PhotoImage(song_img)
+        # Save image reference to avoid garbage collection
+        self.song_images.append(song_img_tk)
+
+        # Image label for song cover
+        img_label = tk.Label(row, image=song_img_tk, bg="#2e2e2e")
+        img_label.pack(side="left", padx=5)
+
+        # Text label for song name and author
+        song_text = f"{song.name} - {song.author}"
+        text_label = tk.Label(row, text=song_text, bg="#2e2e2e", fg="white", anchor="w")
+        text_label.pack(side="left", fill="x", expand=True)
+
+    def bind_mousewheel(self):
+        # Bind mousewheel events when the mouse enters the canvas
+        self.songs_canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # For Windows and MacOS
+        self.songs_canvas.bind_all("<Button-4>", self._on_mousewheel)  # For Linux, scroll up
+        self.songs_canvas.bind_all("<Button-5>", self._on_mousewheel)  # For Linux, scroll down
+
+    def unbind_mousewheel(self):
+        # Unbind mousewheel events when the mouse leaves the canvas
+        self.songs_canvas.unbind_all("<MouseWheel>")
+        self.songs_canvas.unbind_all("<Button-4>")
+        self.songs_canvas.unbind_all("<Button-5>")
+
+    def _on_mousewheel(self, event):
+        # Mouse wheel event handler for scrolling the canvas.
+        if event.num == 4 or event.delta > 0:
+            self.songs_canvas.yview_scroll(-1, "units")
+        elif event.num == 5 or event.delta < 0:
+            self.songs_canvas.yview_scroll(1, "units")
+
+    def place_frame(self):
+        # Center the frame in the parent window
+        self.parent.update_idletasks()
+        parent_width = self.parent.winfo_width()
+        parent_height = self.parent.winfo_height()
+        x = (parent_width - self.frame_width) // 2
+        y = (parent_height - self.frame_height) // 2
+        self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
+
+    def destroy(self):
+        self.frame.destroy()
 
 class PlaylistFrame:
     def __init__(self, parent):
@@ -181,3 +306,18 @@ class ToolTip:
         if self.tip_window:
             self.tip_window.destroy()
             self.tip_window = None
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    root.title("Playlist Info")
+    root.geometry("400x400")
+    with open('playlists/1.jpg', 'rb') as f:
+        cover64b = base64.b64encode(f.read())
+
+    song1 = Song(1, "Imagine", "John LeBron", "Imagine", cover64b)
+    song2 = Song(2, "Let It Be", "The Beatles", "Let It Be", cover64b)
+    song3 = Song(3, "Bohemian Rhapsody", "King", "A Night at the Opera", cover64b)
+
+    playlist = Playlist(1, "My Playlist",  cover64b, [song1, song2, song3])
+    playlist_frame = PlaylistInfoFrame(root, playlist)
+    root.mainloop()

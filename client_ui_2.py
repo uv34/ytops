@@ -131,9 +131,7 @@ class AudioClientApp(tk.Tk):
         print("queue", list(self.song_queue.queue))
         print("history", list(self.song_queue.history))
 
-    def click_playlist_frame(self, event):
-        """self.stop_stream()
-        self.start_after_stop(event.widget.song_id)"""
+    def play_playlist(self, event):
         self.stop_stream()
         self.skipped = True
         self.song_queue.clear()
@@ -147,6 +145,24 @@ class AudioClientApp(tk.Tk):
 
         print("queue", list(self.song_queue.queue))
         print("history", list(self.song_queue.history))
+    def click_playlist_frame(self, event):
+        """self.stop_stream()
+        self.start_after_stop(event.widget.song_id)"""
+        '''self.stop_stream()
+        self.skipped = True
+        self.song_queue.clear()
+        for song in event.widget.playlist.songs:
+            print('-----------------------------------------------------------------------')
+            self.song_queue.add_song(song.song_id)
+        if not self.stream_thread:
+            self.song_queue.next()
+        print(self.song_queue)
+        self.start_after_stop(self.song_queue.current_song)
+
+        print("queue", list(self.song_queue.queue))
+        print("history", list(self.song_queue.history))'''
+
+        playlist_info_frame = PlaylistInfoFrame(self, event.widget.playlist)
 
     def click_add_playlist(self, event):
         PlaylistFrame(self)
