@@ -23,15 +23,15 @@ class PlaylistInfoFrame:
         # --- Playlist Cover Image Section ---
         self.image_frame = tk.Frame(self.frame, bg="#1e1e1e",
                                     highlightthickness=2, highlightbackground="#666666",
-                                    width=150, height=150)
+                                    width=100, height=100)
         self.image_frame.place(relx=0.5, y=20, anchor="n")
         self.image_frame.pack_propagate(False)
 
         # Decode and load the playlist cover image
         img_data = base64.b64decode(self.playlist.coverb64)
         img = Image.open(io.BytesIO(img_data))
-        img.thumbnail((64, 64))
-        img_tk = ImageTk.PhotoImage(img)
+        img_resized = img.resize((100, 100))
+        img_tk = ImageTk.PhotoImage(img_resized)
         self.image_label = tk.Label(self.image_frame, image=img_tk, bg="#1e1e1e")
         self.image_label.image = img_tk  # Keep a reference!
         self.image_label.pack(expand=True, fill="both")
@@ -39,7 +39,11 @@ class PlaylistInfoFrame:
         # --- Playlist Title Section ---
         self.title_label = tk.Label(self.frame, text=self.playlist.name,
                                     bg="#1e1e1e", fg="white", font=("Arial", 12, "bold"))
-        self.title_label.place(relx=0.5, y=180, anchor="n", width=260)
+        self.title_label.place(relx=0.5, y=130, anchor="n", width=260)
+
+        self.play_button = tk.Button(self.frame, text="play", bg="#3e3e3e", fg="white", width=10,
+                                       command=lambda: self.parent.controller.play_playlist(self.playlist))
+        self.play_button.place(relx=0.5, y=160, anchor="n")
 
         # --- Scrollable Songs Section ---
         # Create a canvas to hold the songs frame and attach a scrollbar
@@ -143,7 +147,7 @@ class PlaylistFrame:
         # Image placeholder: a frame with #666666 border containing a plus button
         self.image_frame = tk.Frame(self.frame, bg="#1e1e1e",
                                     highlightthickness=2, highlightbackground="#666666",
-                                    width=150, height=150)
+                                    width=100, height=100)
         self.image_frame.place(relx=0.5, y=20, anchor="n")
         self.image_frame.pack_propagate(False)  # Prevent frame from resizing to its content
 
@@ -169,7 +173,8 @@ class PlaylistFrame:
 
     def create(self):
         if self.filepath and len(self.title_entry.get()) > 1:
-            self.parent.create_playlist(self.title_entry.get(), self.filepath)
+            self.parent.controller.create_playlist(self.title_entry.get(), self.filepath)
+            self.destroy()
 
     def place_frame(self):
         # Update parent window info and center the frame
@@ -181,11 +186,11 @@ class PlaylistFrame:
         self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
 
     def upload_image(self):
-        self.filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.gif")])
+        self.filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg")])
         if self.filepath:
             img = Image.open(self.filepath)
-            img.thumbnail((64, 64))
-            img_tk = ImageTk.PhotoImage(img)
+            img_resized = img.resize((100, 100))
+            img_tk = ImageTk.PhotoImage(img_resized)
             self.image_label.config(image=img_tk)
             self.image_label.image = img_tk  # Keep a reference
 
@@ -255,17 +260,17 @@ class VolumePopup:
             orient="horizontal",
             command=self.set_volume
         )
-        slider.set(self.app.volume * 100)  # Set initial value
+        slider.set(self.app.controller.volume * 100)  # Set initial value
         slider.pack(padx=10, pady=10)
 
         tw.focus_set()  # Grab focus to auto-close when clicking outside
 
     def set_volume(self, val):
         volume = float(val)/100
-        self.app.volume = volume
-        if self.app.client:
+        self.app.controller.volume = volume
+        if self.app.controller.client:
             print('volume', volume)
-            self.app.client.set_volume(volume)
+            self.app.controller.client.set_volume(volume)
 
     def hide(self):
         if self.popup:

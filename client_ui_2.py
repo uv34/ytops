@@ -131,11 +131,11 @@ class AudioClientApp(tk.Tk):
         print("queue", list(self.song_queue.queue))
         print("history", list(self.song_queue.history))
 
-    def play_playlist(self, event):
+    def play_playlist(self, playlist):
         self.stop_stream()
         self.skipped = True
         self.song_queue.clear()
-        for song in event.widget.playlist.songs:
+        for song in playlist.songs:
             print('-----------------------------------------------------------------------')
             self.song_queue.add_song(song.song_id)
         if not self.stream_thread:
@@ -145,6 +145,7 @@ class AudioClientApp(tk.Tk):
 
         print("queue", list(self.song_queue.queue))
         print("history", list(self.song_queue.history))
+
     def click_playlist_frame(self, event):
         """self.stop_stream()
         self.start_after_stop(event.widget.song_id)"""
@@ -191,6 +192,18 @@ class AudioClientApp(tk.Tk):
         else:
             self.start_stream(song_id)
 
+    def delete_playlist(self, event):
+        playlist = event.widget.playlist
+        msg = protocol.create_msg("DLPL", f"{self.token}~{playlist.playlist_id}".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "DLPL":
+            if data[:2].decode() == "OK":
+                self.playlists.remove(playlist)
+                self.display_playlists_horizontaly(self.playlists, self.inner_frame2)
+                return
+        messagebox.showerror("Error", "Failed to delete playlist.")
+
     def add_to_playlist(self, song, playlist):
         print('add top playlist')
         msg = protocol.create_msg("ASTP", f"{self.token}~{playlist.playlist_id}~{song.song_id}".encode())
@@ -203,6 +216,11 @@ class AudioClientApp(tk.Tk):
                 return
         messagebox.showerror("Error", "Failed to add song to playlist.")
 
+    def show_playlist_action_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label='play', command=lambda: self.play_playlist(event.widget.playlist))
+        menu.add_command(label='delete', command=lambda: self.delete_playlist(event))
+        menu.post(event.x_root, event.y_root)
 
     def show_song_action_menu(self, event):
         menu = tk.Menu(self, tearoff=0)
@@ -250,6 +268,10 @@ class AudioClientApp(tk.Tk):
 
     def display_playlists_horizontaly(self, playlists, inner_frame):
         self.playlists = playlists
+
+        for w in inner_frame.winfo_children():  # clear old widgets
+            w.destroy()
+
         for col, playlist in enumerate(playlists):
             # Song block
             playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
@@ -278,6 +300,10 @@ class AudioClientApp(tk.Tk):
             label_title.bind("<Button-1>", self.click_playlist_frame)
             label_image.bind("<Button-1>", self.click_playlist_frame)
 
+            playlist_frame.bind("<Button-3>", self.show_playlist_action_menu)
+            label_title.bind("<Button-3>", self.show_playlist_action_menu)
+            label_image.bind("<Button-3>", self.show_playlist_action_menu)
+
         add_playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
         add_playlist_frame.grid(row=0, column=len(playlists), padx=5, pady=5)
         # Cover image
@@ -297,8 +323,7 @@ class AudioClientApp(tk.Tk):
         label_title.bind("<Button-1>", self.click_add_playlist)
         label_image.bind("<Button-1>", self.click_add_playlist)
 
-
-    def fetch_and_display(self):
+    def fetch_and_display(self):  # change to only display, fetch part will be in different file
         try:
             self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
             msg, data = protocol.get_msg(self.gen_socket)
@@ -326,7 +351,7 @@ class AudioClientApp(tk.Tk):
         # Scrollable canvas
 
         self.display_songs_horizontaly(songs, self.inner_frame)
-        if self.playlists != playlists:
+        if self.playlists != playlists or self.playlists == []:
             self.display_playlists_horizontaly(playlists, self.inner_frame2)
 
     def on_canvas_configure(self, event):
@@ -463,7 +488,6 @@ class AudioClientApp(tk.Tk):
                 self.stop_stream()
                 return
 
-
     def start_stream(self, id):
         if self.stream_thread and self.stream_thread.is_alive():
             messagebox.showinfo("Info", "Already streaming!")
@@ -549,3 +573,4 @@ if __name__ == "__main__":
     response, token = resp.decode().split('~')
     app = AudioClientApp(token, gen_sock)
     app.mainloop()
+    gen_sock.send(protocol.create_msg('EXIT', b''))

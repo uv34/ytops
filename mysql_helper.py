@@ -99,6 +99,29 @@ class DBController:
         cursor.close()
         return playlist
 
+    def delete_playlist(self, playlist_id):
+        """
+        Deletes the specified playlist and cleans up related song associations.
+        """
+        cursor = self.conn.cursor()
+        try:
+            # First, remove all song associations for this playlist.
+            delete_associations_query = "DELETE FROM songs_has_playlists WHERE playlists_id = %s"
+            cursor.execute(delete_associations_query, (playlist_id,))
+
+            # Next, delete the playlist itself.
+            delete_playlist_query = "DELETE FROM playlists WHERE id = %s"
+            cursor.execute(delete_playlist_query, (playlist_id,))
+
+            # Commit changes
+            self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            return False
+        finally:
+            cursor.close()
+            return True
+
     def add_song_to_playlist(self, song_id, playlist_id):
         cursor = self.conn.cursor()
 

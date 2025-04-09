@@ -12,6 +12,7 @@ import mysql_helper
 import io
 from PIL import Image
 from song import Song, Playlist
+import os
 
 SECRET_KEY = 'very‑strong‑secret-key'
 
@@ -136,9 +137,12 @@ class StopifyServer:
     def handle_crpl(self, data, payload):
         _, name, imageb64 = data.split(b'~')
         user_id = payload['user']
+        image_bytes = base64.b64decode(imageb64)
+        img_io_bytes = io.BytesIO(image_bytes)
+        if not (image_bytes.startswith(b'\xff\xd8') and image_bytes.endswith(b'\xff\xd9')):
+            return b'NOT Valid jpg'
         playlist_id = self.db.create_playlist(user_id, name.decode())
-        img_bytes = io.BytesIO(base64.b64decode(imageb64))
-        img = Image.open(img_bytes)
+        img = Image.open(img_io_bytes)
         img_resized = img.resize((64, 64))
 
         output_stream = io.BytesIO()
@@ -156,8 +160,17 @@ class StopifyServer:
             return b'OK'
         return b'NO'
 
+    def handle_dlpl(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        _, playlist_id = data.split(b'~')
+        if self.db.delete_playlist(playlist_id.decode()):
+            os.remove(f'playlists/{playlist_id.decode()}.jpg')
+            print('removed playlist', playlist_id.decode())
+            return b'OK'
+        return b'NO'
     def handle_cmd(self, payload, cmd, data):
-        actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp}
+        actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp, "DLPL": self.handle_dlpl}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:
@@ -183,6 +196,9 @@ class StopifyServer:
         while True:
             #  try:
             cmd, data = self.recv_msg(client_socket)
+            if cmd == 'EXIT':
+                print('client disconnected')
+                break
             token = data.split(b'~')[0]
             payload = verify_token(token)
             if payload:
@@ -194,7 +210,7 @@ class StopifyServer:
             """except Exception as e:
                 print(f'Error: {e}')
                 break"""
-
+        del self.client_users[client_socket]
         self.threads.remove(threading.current_thread())
 
     def run(self):
