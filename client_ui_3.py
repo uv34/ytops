@@ -1,16 +1,10 @@
-import queue
-import tkinter as tk
-from tkinter import ttk, messagebox
-import threading
-from PIL import Image, ImageTk
-import io
 import socket
+import threading
+from tkinter import messagebox
+
 import protocol
-from audio_client_v2 import AudioClient
-import base64, pickle
-from song import Song, SongQueue
-from custom_widgets import *
 from client import PlaybackController
+from custom_widgets import *
 
 
 def time_str(time: float) -> str:
@@ -29,7 +23,7 @@ class AudioClientApp(tk.Tk):
 
         style = ttk.Style(self)
         style.theme_use("clam")
-        #cover
+        # cover
         pil_img = Image.open("default.jpg")
         self.cover_tk = ImageTk.PhotoImage(pil_img)
 
@@ -74,7 +68,7 @@ class AudioClientApp(tk.Tk):
 
         # Canvas that will serve as our slider
         self.slider_canvas = tk.Canvas(self, width=300, height=10, bg=self.cget("bg"), highlightthickness=0)
-        self.slider_canvas.grid(row=3, column=1, columnspan=3, padx=5, pady=(10,5))
+        self.slider_canvas.grid(row=3, column=1, columnspan=3, padx=5, pady=(10, 5))
         # Bind <Configure> so we know when the canvas size is finalized
         self.slider_canvas.bind("<Configure>", self.on_canvas_configure)
 
@@ -108,7 +102,6 @@ class AudioClientApp(tk.Tk):
 
         self.toggle_button = tk.Button(self, text="☰", command=self.toggle_middle_frame)
         self.toggle_button.grid(row=4, column=4, sticky='w', padx=5, pady=5)
-
 
     def disable_pause_button(self):
         self.pause_button.config(state=tk.DISABLED)
@@ -228,6 +221,7 @@ class AudioClientApp(tk.Tk):
         label_title.grid(row=1, column=0)
 
         return playlist_frame, label_title, label_image
+
     def fetch_and_display(self):  # change to only display, fetch part will be in different file
         try:
             songs, playlists = self.controller.fetch_recommendations()
@@ -272,6 +266,7 @@ class AudioClientApp(tk.Tk):
         center_y = h // 2
 
         ratio_downloaded = min(max(self.controller.downloaded_time / self.controller.total_time, 0.0), 1.0)
+        print('plated time', self.controller.played_time, 'total time', self.controller.total_time)
         ratio_played = min(max(self.controller.played_time / self.controller.total_time, 0.0), 1.0)
 
         downloaded_x = ratio_downloaded * w
@@ -322,12 +317,12 @@ class AudioClientApp(tk.Tk):
         w = self.slider_canvas.winfo_width()
         x = max(0, min(w, x))  # clamp
 
-        new_time = (x / w) * self.total_time
+        new_time = (x / w) * self.controller.total_time
         self.played_time = new_time
         self.draw_slider()
 
         if do_seek and self.client:
-            self.client.seek(self.played_time)
+            self.controller.seek(self.played_time)
 
     def on_playback_time(self, played_s, total_s):
         self.after(0, self._update_playback, played_s, total_s)
@@ -335,12 +330,13 @@ class AudioClientApp(tk.Tk):
     def _update_playback(self, played_s, total_s):
         if total_s < 1:
             total_s = 1
-        self.total_time = total_s
-        self.played_time = played_s
+        self.controller.total_time = total_s
+        self.controller.played_time = played_s
         self.current_playback_label.config(text=time_str(played_s))
-        if self.total_time > 0:
+        if self.controller.total_time > 0:
             self.total_playback_label.config(text=time_str(total_s))
         if not self.dragging:
+            print('drawing')
             self.draw_slider()
 
     def draw_slider_callback(self):
@@ -359,6 +355,7 @@ class AudioClientApp(tk.Tk):
 
     def update_playlists(self):
         self.display_playlists_horizontaly(self.controller.playlists, self.inner_frame2)
+
 
 if __name__ == "__main__":
     gen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

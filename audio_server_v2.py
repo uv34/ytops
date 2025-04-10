@@ -1,15 +1,13 @@
+import base64
+import pickle
 import socket
 import threading
-import os
 import time
-import struct
-import pyogg
+
 import protocol
-import pickle
-import base64
+from general_server import verify_token
 from mysql_helper import DBController
 from ogg_handler import *
-from general_server import verify_token
 
 CHUNK_SIZE = 8192
 DELAY = 0  # artificial delay

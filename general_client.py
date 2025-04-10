@@ -3,7 +3,7 @@ import threading
 import tkinter as tk
 from tkinter import messagebox
 import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
-import client_ui_2
+import client_ui_3
 
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
@@ -139,7 +139,7 @@ def main():
     if success and user:
         tk._default_root = None
         print(token)
-        client_ui_2.AudioClientApp(token, sock).mainloop()
+        client_ui_3.AudioClientApp(token, sock).mainloop()
 
 
 if __name__ == "__main__":

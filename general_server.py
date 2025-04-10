@@ -1,18 +1,16 @@
-import datetime
+import base64
+import io
+import os
+import pickle
 import socket
 import threading
-import time
-import base64
-import pickle
+
 import jwt
-import protocol
-import random
-from sys import exit
-import mysql_helper
-import io
 from PIL import Image
+
+import mysql_helper
+import protocol
 from song import Song, Playlist
-import os
 
 SECRET_KEY = 'very‑strong‑secret-key'
 
@@ -30,6 +28,7 @@ def verify_token(token):
     except Exception as e:
         print('invalid token')
         return False
+
 
 class User:
     def __init__(self, id, username, status):
@@ -126,7 +125,8 @@ class StopifyServer:
                 with open(f'covers/{cover_file}', 'rb') as f:
                     song_cover = f.read()
                 song_coverb64 = base64.b64encode(song_cover)
-                s = Song(song['id'], song['name'], song['author'], album['name'], song_coverb64) # mabye change to the songs real cover
+                s = Song(song['id'], song['name'], song['author'], album['name'],
+                         song_coverb64)  # mabye change to the songs real cover
                 songs_in_p.append(s)
             playlist = Playlist(pid, name, coverb64, songs_in_p)
             playlists_list.append(playlist)
@@ -150,7 +150,7 @@ class StopifyServer:
         resized_image_bytes = output_stream.getvalue()
         with open(f'playlists/{playlist_id}.jpg', 'wb') as f:
             f.write(resized_image_bytes)
-        return b'OK'+pickle.dumps(Playlist(playlist_id, name.decode(), base64.b64encode(resized_image_bytes)))
+        return b'OK' + pickle.dumps(Playlist(playlist_id, name.decode(), base64.b64encode(resized_image_bytes)))
 
     def handle_astp(self, data, payload):
         if not data.count(b'~') == 2:
@@ -169,8 +169,10 @@ class StopifyServer:
             print('removed playlist', playlist_id.decode())
             return b'OK'
         return b'NO'
+
     def handle_cmd(self, payload, cmd, data):
-        actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp, "DLPL": self.handle_dlpl}
+        actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp,
+                   "DLPL": self.handle_dlpl}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:

@@ -1,3 +1,19 @@
+from datetime import datetime
+
+
+class PlaybackSegment:
+    def __init__(self, song_id: str, start_time: float, end_time: float, total_time: float, timestamp: datetime = None):
+        # I have to do that for all functions
+        self.song_id = song_id
+        self.start_time = start_time
+        self.end_time = end_time
+        self.duration = end_time - start_time
+        self.total_time = total_time
+        self.timestamp = timestamp if timestamp is not None else datetime.now()
+
+    def __repr__(self):
+        return (f"PlaybackSegment(song_id='{self.song_id}', start_time={self.start_time}, "
+                f"end_time={self.end_time}, duration={self.duration}, timestamp='{self.timestamp}')")
 
 
 class Song:
@@ -9,11 +25,14 @@ class Song:
         self.coverb64 = cover
 
     def __repr__(self):
-        return f"Song(id={self.song_id}, name='{self.name}', author='{self.author}', album='{self.album}', cover='{self.coverb64}')"
+        return (f"Song(id={self.song_id}, name='{self.name}', author='{self.author}', album='{self.album}'"
+                f", cover='{self.coverb64}')")
 
 
 class Playlist:
-    def __init__(self, playlist_id, name, cover, songs=[]):
+    def __init__(self, playlist_id, name, cover, songs=None):
+        if songs is None:
+            songs = []
         self.playlist_id = playlist_id
         self.name = name
         self.songs = songs
@@ -32,8 +51,8 @@ class Playlist:
 
 class SongQueue:
     def __init__(self):
-        self.queue = []           # Songs to play next
-        self.history = []         # Songs already played
+        self.queue = []  # Songs to play next
+        self.history = []  # Songs already played
         self.current_song = None  # Now playing
 
     def add_song(self, song):
@@ -72,6 +91,7 @@ class SongQueue:
 
     def __repr__(self):
         return f"SongQueue(current_song={self.current_song}, queue={self.queue}, history={self.history})"
+
 
 if __name__ == "__main__":
     song1 = Song(1, "Imagine", "John LeBron", "Imagine", "cover1b64")
