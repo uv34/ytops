@@ -235,6 +235,49 @@ class DBController:
         cursor.close()
         return new_user_id, user_status  # Return tuple: (id, status)
 
+    def add_segment_to_user(self, user_id, songs_id, duration, segment_time, start_time, end_time, used=False):
+        """
+        Add a new segment for a user.
+        """
+        try:
+            cursor = self.conn.cursor()
+            insert_query = """
+                INSERT INTO user_segments (user_id, songs_id, duration, time, start_time, end_time, used)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            # MySQL typically uses 0 or 1 for boolean fields.
+            used_flag = 1 if used else 0
+            cursor.execute(insert_query, (user_id, songs_id, duration, segment_time, start_time, end_time, used_flag))
+            self.conn.commit()
+            print("Segment added successfully.")
+        except Error as e:
+            print(f"Error while inserting segment: {e}")
+            self.conn.rollback()
+        finally:
+            cursor.close()
+
+    def mark_segments_used(self, user_id, n):
+        """
+        Set the first n unused segments (used = False) for the given user to used.
+        """
+        try:
+            cursor = self.conn.cursor()
+            update_query = """
+                UPDATE user_segments
+                SET used = 1
+                WHERE user_id = %s AND used = 0
+                ORDER BY time ASC
+                LIMIT %s
+            """
+            cursor.execute(update_query, (user_id, n))
+            self.conn.commit()
+            print(f"{cursor.rowcount} segments marked as used.")
+        except Error as e:
+            print(f"Error while updating segments: {e}")
+            self.conn.rollback()
+        finally:
+            cursor.close()
+
     def print_users(self):
         """
         Prints all users from the 'user' table in the database.
@@ -264,6 +307,7 @@ if __name__ == '__main__':
     db.print_users()
 
     print(db.get_playlists_by_user(10))
+    db.mark_segments_used(10, 5)
     """user_id = 10
 
     # Create a new playlist for the user.

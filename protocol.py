@@ -1,6 +1,6 @@
 import socket
 
-COMMANDS = ['PGNM', 'RQST', 'STOP', 'SCNF', 'PAGE', 'CRPL', 'ASTP']
+COMMANDS = ['PGNM', 'RQST', 'STOP', 'SCNF', 'PAGE', 'CRPL', 'ASTP', 'USTH']
 LENGTH_HEADER = 6
 CMD_HEADER = 4
 
@@ -43,8 +43,9 @@ def get_msg(other_socket):
     Returns (cmd, data) or ("ERR1", b"<error>") if something goes wrong.
     """
     try:
-        # 1) Read length (5 bytes)
+        # 1) Read length (6 bytes)
         length_bytes = recv_exact(other_socket, LENGTH_HEADER)
+        print(length_bytes)
         if len(length_bytes) < LENGTH_HEADER:
             return ("ERR1", b"Failed to read length header")
 

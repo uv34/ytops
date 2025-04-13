@@ -4,6 +4,7 @@ import os
 import pickle
 import socket
 import threading
+import time
 
 import jwt
 from PIL import Image
@@ -170,13 +171,28 @@ class StopifyServer:
             return b'OK'
         return b'NO'
 
+    def handle_usth(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        _, pick_segments = data.split(b'~')
+        seg = pickle.loads(pick_segments)
+        user_id = payload['user']
+        try:
+            self.db.add_segment_to_user(user_id, seg.song_id, seg.duration, seg.timestamp
+                                        , seg.start_time, seg.end_time)
+            print('added segment to user', user_id, seg.song_id, seg.timestamp)
+        except Exception as e:
+            print(f"Error adding segment to user: {e}")
+            return b'NO'
+        return b'OK'
+
     def handle_cmd(self, payload, cmd, data):
         actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp,
-                   "DLPL": self.handle_dlpl}
+                   "DLPL": self.handle_dlpl, "USTH": self.handle_usth}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:
-            response = False, b'invalid command'
+            response = b'invalid command'
         return response
 
     def handle_client(self, client_socket, client_id, addr):

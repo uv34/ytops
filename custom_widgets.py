@@ -1,3 +1,4 @@
+import threading
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -186,13 +187,18 @@ class PlaylistFrame:
         self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
 
     def upload_image(self):
-        self.filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg")])
-        if self.filepath:
-            img = Image.open(self.filepath)
-            img_resized = img.resize((100, 100))
-            img_tk = ImageTk.PhotoImage(img_resized)
-            self.image_label.config(image=img_tk)
-            self.image_label.image = img_tk  # Keep a reference
+        def _upload_image():
+            self.filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg")])
+            if self.filepath:
+                img = Image.open(self.filepath)     
+                img_resized = img.resize((100, 100))
+                img_tk = ImageTk.PhotoImage(img_resized)
+                self.image_label.config(image=img_tk)
+                self.image_label.image = img_tk  # Keep a reference
+
+        t = threading.Thread(target=_upload_image)
+        t.start()
+
 
     def destroy(self):
         self.frame.destroy()

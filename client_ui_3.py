@@ -266,7 +266,6 @@ class AudioClientApp(tk.Tk):
         center_y = h // 2
 
         ratio_downloaded = min(max(self.controller.downloaded_time / self.controller.total_time, 0.0), 1.0)
-        print('plated time', self.controller.played_time, 'total time', self.controller.total_time)
         ratio_played = min(max(self.controller.played_time / self.controller.total_time, 0.0), 1.0)
 
         downloaded_x = ratio_downloaded * w
@@ -336,7 +335,6 @@ class AudioClientApp(tk.Tk):
         if self.controller.total_time > 0:
             self.total_playback_label.config(text=time_str(total_s))
         if not self.dragging:
-            print('drawing')
             self.draw_slider()
 
     def draw_slider_callback(self):

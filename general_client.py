@@ -8,6 +8,7 @@ import client_ui_3
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
 
+
 class LoginRegisterWindow(tk.Tk):
     def __init__(self):
         super().__init__()

@@ -145,7 +145,6 @@ class OggServer:
         pgnm_data = (f"{song['name']}~{song['author']}~{album['name']}~{total_pages}~{duration}~{current_time}~"
                      f"{sample_rate}~{real_page}|").encode() + pickle.dumps(times) + b"|" + base64.b64encode(cover_data)
 
-        print('items:', pgnm_data.count(b'|'))
         conn.sendall(protocol.create_msg("PGNM", pgnm_data))
         print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")
 
