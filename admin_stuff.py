@@ -33,7 +33,7 @@ def create_song(db, song_file, song_name, song_author, album_id):
     pages = count_ogg_pages(song_file)
 
     song_id = db.create_song(album_id, song_name, song_author, length, sample_rate, pages)
-    with open(f"{song_id}.ogg", "wb") as f:
+    with open(f"songs/{song_id}.ogg", "wb") as f:
         with open(song_file, "rb") as song_f:
             f.write(song_f.read())
 
@@ -45,7 +45,10 @@ if __name__ == '__main__':
     db = mysql_helper.DBController(
         host="192.168.1.20", user="stopify", password="stop123", database="mydb"
     )
-    album_id = create_album(db, r"C:\Users\uv\Downloads\ab67616d0000b273afe473a4a47a4e69ab174069.jpeg", "Typical of Me", "Laufey")
-    create_song(db, r"C:\Users\uv\Downloads\Laufey - Like The Movies (Official Audio).ogg", "Like The Movies", "Laufey", album_id)
-    create_song(db, r"C:\Users\uv\Downloads\Laufey - I Wish You Love (Official Audio).ogg", "I Wish You Love", "Laufey", album_id)
-    create_song(db, r"C:\Users\uv\Downloads\Laufey - Best Friend (Official Video).ogg", "Best Friend", "Laufey", album_id)
+    album_id = create_album(db, r"C:\Users\uv\Downloads\feel_it.jpg", "Single", "d4vd")
+    create_song(db, r"C:\Users\uv\Downloads\d4vd - Feel It (Animated Lyric Video) [TubeRipper.cc].ogg", "Feel It", "d4vd", album_id)
+
+    # album_id = create_album(db, r"C:\Users\uv\Downloads\ab67616d0000b273afe473a4a47a4e69ab174069.jpeg", "Typical of Me", "Laufey")
+    # create_song(db, r"C:\Users\uv\Downloads\Laufey - Like The Movies (Official Audio).ogg", "Like The Movies", "Laufey", album_id)
+    # create_song(db, r"C:\Users\uv\Downloads\Laufey - I Wish You Love (Official Audio).ogg", "I Wish You Love", "Laufey", album_id)
+    # create_song(db, r"C:\Users\uv\Downloads\Laufey - Best Friend (Official Video).ogg", "Best Friend", "Laufey", album_id)

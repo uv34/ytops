@@ -190,9 +190,7 @@ class StopifyServer:
         return b'NO'
 
     def handle_usth(self, data, payload):
-        if not data.count(b'~') == 1:
-            return b'NO'
-        _, pick_segments = data.split(b'~')
+        pick_segments = b'~'.join(data.split(b'~')[1:])
         seg = pickle.loads(pick_segments)
         user_id = payload['user']
         # try:
