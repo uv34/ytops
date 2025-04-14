@@ -139,7 +139,7 @@ class OggServer:
 
         # 5) Send PGNM "<total_pages>~<duration>"
         real_page = 0 if page_num <= last_header_page_idx else page_num - 2
-        with open(f'covers/{album["cover"]}', 'rb') as f:
+        with open(f'covers/{album["id"]}.jpg', 'rb') as f:
             cover_data = f.read()
         # dumps contained ~ so i used |
         pgnm_data = (f"{song['name']}~{song['author']}~{album['name']}~{total_pages}~{duration}~{current_time}~"

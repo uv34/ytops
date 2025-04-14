@@ -11,10 +11,11 @@ from PIL import Image
 
 import mysql_helper
 import protocol
-from song import Song, Playlist
+from song import Song, Playlist, PlaybackSegment
+import recommendations
 
 SECRET_KEY = 'very‑strong‑secret-key'
-
+THRESHOLD = 5
 
 def generate_token(user_id):
     payload = {"user": user_id}
@@ -47,6 +48,7 @@ class StopifyServer:
         self.db = mysql_helper.DBController(
             host="192.168.1.20", user="stopify", password="stop123", database="mydb"
         )
+        self.recommender = recommendations.Recommender(self.db)
 
     def log(self, direction, client_id, message):
         print(f'{direction} {client_id}: {message}')
@@ -64,6 +66,22 @@ class StopifyServer:
     def register_user(self, username, email, hashed_password):
         id, status = self.db.add_user(username, hashed_password, email)
         return id, status
+
+    def _update_user_profile(self, user_id):
+        segments_db = self.db.get_unused_segments(user_id, THRESHOLD)
+        print('segments', segments_db)
+        if not segments_db:
+            print(f"No segments found for user {user_id}")
+            return
+        segments = [PlaybackSegment(seg['songs_id'], seg['start_time'], seg['end_time'],
+                    seg['duration'], seg['time']) for seg in segments_db]
+        print('updating', user_id)
+        updated_profile, combined_weight, current_time = self.recommender.update_user_profile(user_id, segments)
+        print('updated profile', updated_profile, combined_weight, current_time)
+        self.db.update_user_profile(user_id, updated_profile, combined_weight, current_time)
+        print('updated user profile', user_id)
+        self.db.mark_segments_used(user_id, THRESHOLD)
+
 
     def send_msg(self, client_socket, cmd, data):
         msg = protocol.create_msg(cmd, data)
@@ -100,15 +118,15 @@ class StopifyServer:
 
     def handle_recm(self, data, payload):
         id = payload['user']
-        songs = []
-        for i in range(1, 6):
+        songs = self.recommender.recommend(id, 5)
+        """for i in range(1, 6):
             print(i)
             song = self.db.get_song(str(i))
             album = self.db.get_album(song['album_id'])
             with open(f'covers/{album["cover"]}', 'rb') as f:
                 cover_data = f.read()
             cover_b64 = base64.b64encode(cover_data)
-            songs.append(Song(i, song['name'], song['author'], album['name'], cover_b64))
+            songs.append(Song(i, song['name'], song['author'], album['name'], cover_b64))"""
 
         playlists = self.db.get_playlists_by_user(id)
         playlists_list = []
@@ -122,7 +140,7 @@ class StopifyServer:
             songs_in_p = []
             for song in d:
                 album = self.db.get_album(song['album_id'])
-                cover_file = album['cover']
+                cover_file = f'{album["id"]}.jpg'
                 with open(f'covers/{cover_file}', 'rb') as f:
                     song_cover = f.read()
                 song_coverb64 = base64.b64encode(song_cover)
@@ -177,13 +195,16 @@ class StopifyServer:
         _, pick_segments = data.split(b'~')
         seg = pickle.loads(pick_segments)
         user_id = payload['user']
-        try:
-            self.db.add_segment_to_user(user_id, seg.song_id, seg.duration, seg.timestamp
+        # try:
+        n = self.db.add_segment_to_user(user_id, seg.song_id, seg.duration, seg.timestamp
                                         , seg.start_time, seg.end_time)
-            print('added segment to user', user_id, seg.song_id, seg.timestamp)
-        except Exception as e:
+        print(n)
+        if n > THRESHOLD:
+            self._update_user_profile(user_id)
+        print('added segment to user', user_id, seg.song_id, seg.timestamp)
+        """except Exception as e:
             print(f"Error adding segment to user: {e}")
-            return b'NO'
+            return b'NO'"""
         return b'OK'
 
     def handle_cmd(self, payload, cmd, data):

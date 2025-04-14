@@ -1,5 +1,6 @@
 import os
 import sys
+import pickle
 import numpy as np
 import pandas as pd
 import librosa
@@ -69,13 +70,15 @@ def song_to_spectrograms(file_path, segment_duration=15, sr=22050,
         return np.array([])
     return np.array(spectrograms)
 
+
 def prepare_training_data(features_df, audio_dir, num_tracks=100,
                           segment_duration=15, sr=22050,
                           n_fft=2048, hop_length=512, n_mels=128, fixed_frames=FIXED_FRAMES):
     X = []
     Y = []
     counter = 0
-    for track_id in features_df.index[:num_tracks]:
+    print(features_df)
+    for track_id in features_df.index:
         audio_path = get_audio_path(track_id, audio_dir)
         if not os.path.exists(audio_path):
             print(f"Audio file not found: {audio_path}")
@@ -113,6 +116,34 @@ def build_tf_model(input_shape, num_outputs):
     model.summary()
     return model
 
+
+def load_model_and_calc(path):  # turn to OOP
+    print("Model already trained. Skipping training.")
+    model = tf.keras.models.load_model(
+        "trained_model.h5",
+        custom_objects={'mse': tf.keras.losses.MeanSquaredError()}
+    )
+    spectrograms = song_to_spectrograms(path, fixed_frames=FIXED_FRAMES)
+    if spectrograms.size == 0:
+        print("[Warning] Could not compute spectrograms for the song.")
+    else:
+        predictions = []
+        for spec in spectrograms:
+            spec = spec.reshape(1, spec.shape[0], spec.shape[1], spec.shape[2])
+            pred = model.predict(spec)
+            predictions.append(pred[0])
+        predictions = np.array(predictions)
+        avg_prediction = np.mean(predictions, axis=0)
+        feature_names = [
+            "acousticness", "danceability", "energy",
+            "instrumentalness", "liveness", "speechiness"
+        ]
+        print("Predicted Echonest features:")
+        for name, value in zip(feature_names, avg_prediction):
+            print(f"  {name}: {value:.4f}")
+    return avg_prediction
+
+
 # --------------------------
 # Main Execution
 # --------------------------
@@ -120,7 +151,7 @@ def build_tf_model(input_shape, num_outputs):
 
 if __name__ == "__main__":
 
-    if os.path.exists("trained_model.h5"):
+    if os.path.exists("../trained_model.h5"):
         print("Model already trained. Skipping training.")
         model = tf.keras.models.load_model(
             "trained_model.h5",
@@ -163,6 +194,10 @@ if __name__ == "__main__":
         # 3. Prepare training data from up to 100 tracks.
         print("Preparing training data...")
         X, y = prepare_training_data(features_df, AUDIO_DIR, num_tracks=1000, fixed_frames=FIXED_FRAMES)
+        with open("X.pkl", "wb") as f:
+            pickle.dump(X, f)
+        with open("y.pkl", "wb") as f:
+            pickle.dump(y, f)
         if X.size == 0 or y.size == 0:
             print("[Error] No training data generated. Check your AUDIO_DIR path and ensure audio files are present.")
             sys.exit(1)
@@ -171,7 +206,7 @@ if __name__ == "__main__":
         print(f"Input shape: {input_shape}, Number of output features: {num_outputs}")
         model = build_tf_model(input_shape, num_outputs)
 
-        history = model.fit(X, y, epochs=10000, batch_size=16, verbose=2)
+        history = model.fit(X, y, epochs=1000, batch_size=16, verbose=2)
 
         # 6. Save the trained model.
         model.save("trained_model.h5")

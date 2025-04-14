@@ -358,7 +358,7 @@ class AudioClientApp(tk.Tk):
 if __name__ == "__main__":
     gen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     gen_sock.connect(("localhost", 5001))
-    data = f"uv3~3".encode()
+    data = f"uv~1".encode()
     gen_sock.send(protocol.create_msg('LOGI', data))
     cmd, resp = protocol.get_msg(gen_sock)
     response, token = resp.decode().split('~')

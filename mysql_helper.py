@@ -182,6 +182,106 @@ class DBController:
         self.conn.commit()
         cursor.close()
 
+    def get_user_profile(self, user_id):
+        """
+        Retrieves the user profile from the database.
+        """
+        cursor = self.conn.cursor(dictionary=True)
+        query = """
+            SELECT acoustic, dance, energy, instrument, live, speech, weight, last_updated
+            FROM proflie
+            WHERE user_id = %s
+        """
+        cursor.execute(query, (user_id,))
+        profile = cursor.fetchone()
+        cursor.close()
+        return profile
+
+    def get_song_profile(self, song_id):
+        """
+        Retrieves the song profile from the database.
+        """
+        cursor = self.conn.cursor(dictionary=True)
+        query = """
+            SELECT acoustic, dance, energy, instrument, live, speech
+            FROM songs_profile
+            WHERE songs_id = %s
+        """
+        cursor.execute(query, (song_id,))
+        profile = cursor.fetchone()
+        cursor.close()
+        return profile
+
+    def update_user_profile(self, user_id, new_profile, new_weight, new_timestamp):
+        try:
+            cursor = self.conn.cursor()
+
+            # In case new_timestamp is a string, convert it to the proper format.
+            # If it's already a datetime, this step can be skipped.
+            if isinstance(new_timestamp, str):
+                from datetime import datetime
+                new_timestamp = datetime.fromisoformat(new_timestamp)
+
+            update_query = """
+                    UPDATE `proflie`
+                    SET acoustic = %s,
+                        dance = %s,
+                        energy = %s,
+                        instrument = %s,
+                        live = %s,
+                        speech = %s,
+                        weight = %s,
+                        last_updated = %s
+                    WHERE user_id = %s
+                """
+
+            # Map our keys from the passed profile dictionary to the correct columns.
+            parameters = (
+                new_profile.get('acoustic', 0.0),
+                new_profile.get('dance', 0.0),
+                new_profile.get('energy', 0.0),
+                new_profile.get('instrument', 0.0),
+                new_profile.get('live', 0.0),
+                new_profile.get('speech', 0.0),
+                new_weight,
+                new_timestamp,
+                user_id
+            )
+
+            cursor.execute(update_query, parameters)
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print("Error while updating user profile:", e)
+            self.conn.rollback()
+            return False
+        finally:
+            cursor.close()
+
+    def get_all_song_profiles(self):
+        """
+        Retrieves all song profiles from the database.
+        """
+        cursor = self.conn.cursor(dictionary=True)
+        query = "SELECT * FROM songs_profile"
+        cursor.execute(query)
+        profiles = cursor.fetchall()
+        cursor.close()
+        return profiles
+
+    def create_song_profile(self, song_id, profile):
+        """
+        Creates a song profile in the database.
+        """
+        cursor = self.conn.cursor()
+        query = """
+            INSERT INTO songs_profile (songs_id, acoustic, dance, energy, instrument, live, speech)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(query, (song_id, float(profile[0]), float(profile[1]), float(profile[2]), float(profile[3]), float(profile[4]), float(profile[5])))
+        self.conn.commit()
+        cursor.close()
+
     def print_tables(self):
         """
         Prints the names of all tables in the current database and their contents.
@@ -222,7 +322,7 @@ class DBController:
         # 1) Check if user already exists
         cursor.execute("SELECT COUNT(*) FROM `user` WHERE username = %s OR email = %s", (username, email))
         if cursor.fetchone()[0] > 0:
-            return "ERROR: Username or email already exists."
+            return -1, "ERROR: Username or email already exists."
         # Generate the hash (bcrypt automatically creates a salt)
         hashed_password = bcrypt.hashpw(plain_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user_status = 'r'
@@ -232,6 +332,17 @@ class DBController:
         self.conn.commit()
 
         new_user_id = cursor.lastrowid
+
+        insert_profile_query = """
+                INSERT INTO `proflie`
+                    (user_id, acoustic, dance, energy, instrument, live, speech, weight, last_updated)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            """
+        default_profile = (new_user_id, 0.5, 0.5, 0.5, 0.0, 0.5, 0.05, 1.0)
+        cursor.execute(insert_profile_query, default_profile)
+        self.conn.commit()
+
         cursor.close()
         return new_user_id, user_status  # Return tuple: (id, status)
 
@@ -250,11 +361,34 @@ class DBController:
             cursor.execute(insert_query, (user_id, songs_id, duration, segment_time, start_time, end_time, used_flag))
             self.conn.commit()
             print("Segment added successfully.")
-        except Error as e:
+            count_query = """
+                        SELECT COUNT(*) FROM user_segments
+                        WHERE user_id = %s AND used = 0
+                    """
+            cursor.execute(count_query, (user_id,))
+            unused_count = cursor.fetchone()[0]
+            cursor.close()
+            return unused_count
+        except Exception as e:
             print(f"Error while inserting segment: {e}")
             self.conn.rollback()
-        finally:
             cursor.close()
+            return -1
+
+    def get_unused_segments(self, user_id, n):
+        cursor = self.conn.cursor(dictionary=True)
+        query = """
+            SELECT * 
+            FROM user_segments
+            WHERE used = 0 AND user_id = %s
+            ORDER BY id ASC 
+            LIMIT %s
+        """
+        cursor.execute(query, (user_id, n))
+        segments = cursor.fetchall()
+        cursor.close()
+        return segments
+
 
     def mark_segments_used(self, user_id, n):
         """
@@ -355,7 +489,7 @@ if __name__ == '__main__':
     print_playlist_order(playlist_id)"""
 
     """
-    album_id = db.create_album("Dire Straits (Remastered)", "Dire Straits", "dire_straits_remastered.jpg")
+    album_id = db.create_album("Dire Straits (Remastered)", "Dire Straits", "1.jpg")
     length = get_ogg_duration("5.ogg")
     sample_rate = get_sample_rate('5.ogg')
     pages = count_ogg_pages('5.ogg')

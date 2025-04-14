@@ -7,7 +7,7 @@ class PlaybackSegment:
         self.song_id = song_id
         self.start_time = start_time
         self.end_time = end_time
-        self.duration = end_time - start_time
+        self.duration = end_time
         self.total_time = total_time
         self.timestamp = timestamp if timestamp is not None else datetime.now()
 
