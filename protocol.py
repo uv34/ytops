@@ -45,7 +45,6 @@ def get_msg(other_socket):
     try:
         # 1) Read length (6 bytes)
         length_bytes = recv_exact(other_socket, LENGTH_HEADER)
-        print(length_bytes)
         if len(length_bytes) < LENGTH_HEADER:
             return ("ERR1", b"Failed to read length header")
 

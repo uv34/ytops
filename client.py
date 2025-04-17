@@ -4,6 +4,7 @@ import threading
 import protocol
 from audio_client_v2 import AudioClient
 from custom_widgets import *
+from song import *
 
 
 class PlaybackController:
@@ -98,9 +99,20 @@ class PlaybackController:
         if cmd == "ASTP":
             if data[:2].decode() == "OK":
                 p_to_add.add_song(song)
+                self.update_playlist_callback()
                 print("Success", "Song added to playlist successfully!")
                 return
         print("Error", "Failed to add song to playlist.")
+
+    def search(self, query):
+        msg = protocol.create_msg("SSIS", f"{self.token}~{query}".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "SSIS":
+            songs = pickle.loads(data)
+            print("Success", "Search completed successfully!")
+            return songs
+        print("Error", "Failed to search for song.")
 
     def fetch_recommendations(self):
         self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))

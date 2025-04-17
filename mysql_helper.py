@@ -60,6 +60,14 @@ class DBController:
         cursor.close()
         return song
 
+    def get_all_song_names(self):
+        cursor = self.conn.cursor()
+        query = "SELECT id, name FROM songs"
+        cursor.execute(query)
+        songs = cursor.fetchall()
+        cursor.close()
+        return songs
+
     def create_playlist(self, user_id, name):
         """
         Creates a playlist associated with a user.
@@ -441,7 +449,7 @@ if __name__ == '__main__':
     db.print_users()
 
     print(db.get_playlists_by_user(10))
-    db.mark_segments_used(10, 5)
+    print(db.get_all_song_names())
     """user_id = 10
 
     # Create a new playlist for the user.

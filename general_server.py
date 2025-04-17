@@ -5,6 +5,7 @@ import pickle
 import socket
 import threading
 import time
+import difflib
 
 import jwt
 from PIL import Image
@@ -205,9 +206,31 @@ class StopifyServer:
             return b'NO'"""
         return b'OK'
 
+    def handle_ssis(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        all_song_names = self.db.get_all_song_names()
+        query = data.split(b'~')[1].decode()
+        close = difflib.get_close_matches(query, [song[1] for song in all_song_names], n=5, cutoff=0.6)
+        matches = [(sid, title) for (sid, title) in all_song_names if title in close]
+        print('matches', matches)
+        songs = []
+        for song_id, name in matches:
+            song = self.db.get_song(song_id)
+            album = self.db.get_album(song['album_id'])
+            cover_file = f'{album["id"]}.jpg'
+            with open(f'covers/{cover_file}', 'rb') as f:
+                song_cover = f.read()
+            song_coverb64 = base64.b64encode(song_cover)
+            s = Song(song['id'], song['name'], song['author'], album['name'],
+                     song_coverb64)  # mabye change to the songs real cover
+            songs.append(s)
+        print('songs', songs)
+        return pickle.dumps(songs)
+
     def handle_cmd(self, payload, cmd, data):
         actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp,
-                   "DLPL": self.handle_dlpl, "USTH": self.handle_usth}
+                   "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:

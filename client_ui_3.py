@@ -1,6 +1,9 @@
 import socket
 import threading
+import tkinter
 from tkinter import messagebox
+import customtkinter as ctk
+
 
 import protocol
 from client import PlaybackController
@@ -20,7 +23,6 @@ class AudioClientApp(tk.Tk):
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
                                              , self.draw_slider_callback, self.update_playlists)
-
         style = ttk.Style(self)
         style.theme_use("clam")
         # cover
@@ -33,38 +35,7 @@ class AudioClientApp(tk.Tk):
         self.song_info_label = tk.Label(self, text="song name\n author")
         self.song_info_label.grid(row=0, rowspan=2, column=2, columnspan=3, sticky='w', padx=5, pady=5)
 
-        self.middle_frame = tk.Frame(self, height=240, width=380)
-        self.middle_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=5)
-        self.canvas = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
-        self.canvas.grid(row=0, column=0, sticky="nsew", pady=10)
-
-        self.h_scrollbar = tk.Scrollbar(self.middle_frame, orient="horizontal", command=self.canvas.xview)
-        self.h_scrollbar.grid(row=1, column=0, sticky="ew", pady=10)
-        self.canvas.configure(xscrollcommand=self.h_scrollbar.set)
-
-        self.inner_frame = tk.Frame(self.canvas, bg="#CCCCCC")
-        self.canvas.create_window((0, 0), window=self.inner_frame, anchor="nw")
-
-        # Second canvas and its scrollbar
-        self.canvas2 = tk.Canvas(self.middle_frame, height=100, bg="#CCCCCC")
-        self.canvas2.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
-
-        self.h_scrollbar2 = tk.Scrollbar(self.middle_frame, orient="horizontal", command=self.canvas2.xview)
-        self.h_scrollbar2.grid(row=3, column=0, sticky="ew", pady=(0, 10))
-        self.canvas2.configure(xscrollcommand=self.h_scrollbar2.set)
-
-        self.inner_frame2 = tk.Frame(self.canvas2, bg="#CCCCCC")
-        self.canvas2.create_window((0, 0), window=self.inner_frame2, anchor="nw")
-
-        def on_configure(event):  # update the canvas when its being scrolled
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
-        def on_configure2(event):  # update the canvas when its being scrolled
-            self.canvas2.configure(scrollregion=self.canvas2.bbox("all"))
-
-        self.inner_frame.bind("<Configure>", on_configure)
-        self.inner_frame2.bind("<Configure>", on_configure2)
-        self.middle_frame.grid_remove()
+        self.make_middle_frame()
 
         # Canvas that will serve as our slider
         self.slider_canvas = tk.Canvas(self, width=300, height=10, bg=self.cget("bg"), highlightthickness=0)
@@ -103,6 +74,33 @@ class AudioClientApp(tk.Tk):
         self.toggle_button = tk.Button(self, text="☰", command=self.toggle_middle_frame)
         self.toggle_button.grid(row=4, column=4, sticky='w', padx=5, pady=5)
 
+    def make_middle_frame(self):
+        self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color='#cccccc')
+        self.tab_view.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=5)
+        self.tab_view.add('songs')
+        self.tab_view.tab('songs').configure(fg_color=self.tab_view.cget("fg_color"))
+        self._build_songs_tab(self.tab_view.tab("songs"))
+
+        self.tab_view.grid_remove()
+
+    def _build_songs_tab(self, parent):
+
+        self.search_bar = tk.Entry(parent)
+        self.search_bar.grid(row=0, column=0, sticky="e", padx=10, pady=5)
+        self.search_button = tk.Button(parent, text="🔍", command=self.search_songs)
+        self.search_button.grid(row=0, column=1, sticky="e", padx=5, pady=5)
+        self.canvas = ctk.CTkScrollableFrame(parent, height=100, width=360, orientation="horizontal", fg_color=parent.cget("fg_color"))
+        self.canvas.grid(row=1, column=0, sticky="nsew", pady=10, columnspan=2)
+        # Second canvas and its scrollbar
+        self.canvas2 = ctk.CTkScrollableFrame(parent, height=100, orientation="horizontal", fg_color=parent.cget("fg_color"))
+        self.canvas2.grid(row=2, column=0, sticky="nsew", pady=(10, 0), columnspan=2)
+
+    def search_songs(self):
+        search_term = self.search_bar.get()
+        if search_term:
+            songs = self.controller.search(search_term)
+            self.display_songs_horizontaly(songs, self.canvas)
+
     def disable_pause_button(self):
         self.pause_button.config(state=tk.DISABLED)
 
@@ -136,7 +134,7 @@ class AudioClientApp(tk.Tk):
     def display_songs_horizontaly(self, songs, inner_frame):
         for col, song in enumerate(songs):
             # Song block
-            song_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
+            song_frame = tk.Frame(inner_frame, padx=5, pady=5, bg=inner_frame.cget("fg_color"))
             song_frame.song = song
             song_frame.grid(row=0, column=col, padx=5, pady=5)
 
@@ -146,14 +144,14 @@ class AudioClientApp(tk.Tk):
             image.thumbnail((100, 100))
             photo = ImageTk.PhotoImage(image)
 
-            label_image = tk.Label(song_frame, image=photo, bg="#CCCCCC")
+            label_image = tk.Label(song_frame, image=photo, bg=inner_frame.cget("fg_color"))
             label_image.image = photo  # prevent
             label_image.song = song
             label_image.grid(row=0, column=0)
 
             # Title
             nn = song.name if len(song.name) < 12 else f"{song.name[:10]}   ..."
-            label_title = tk.Label(song_frame, text=nn, bg="#CCCCCC")
+            label_title = tk.Label(song_frame, text=nn, bg=inner_frame.cget("fg_color"))
             label_title.song = song
 
             # ToolTip
@@ -177,19 +175,19 @@ class AudioClientApp(tk.Tk):
                 widget.bind("<Button-1>", self.click_playlist_frame)
                 widget.bind("<Button-3>", self.show_playlist_action_menu)
 
-        add_playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
+        add_playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg=inner_frame.cget("fg_color"))
         add_playlist_frame.grid(row=0, column=len(playlists), padx=5, pady=5)
         # Cover image
         image = Image.open("default.jpg")
         image.thumbnail((100, 100))
         photo = ImageTk.PhotoImage(image)
 
-        label_image = tk.Label(add_playlist_frame, image=photo, bg="#CCCCCC")
+        label_image = tk.Label(add_playlist_frame, image=photo, bg=inner_frame.cget("fg_color"))
         label_image.image = photo
         label_image.grid(row=0, column=0)
 
         # Title
-        label_title = tk.Label(add_playlist_frame, text='new', bg="#CCCCCC")
+        label_title = tk.Label(add_playlist_frame, text='new', bg=inner_frame.cget("fg_color"))
         label_title.grid(row=1, column=0)
 
         add_playlist_frame.bind("<Button-1>", self.click_add_playlist)
@@ -198,7 +196,7 @@ class AudioClientApp(tk.Tk):
 
     def _display_playlist_item(self, inner_frame, playlist, col):
         # Song block
-        playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg="#CCCCCC")
+        playlist_frame = tk.Frame(inner_frame, padx=5, pady=5, bg=inner_frame.cget("fg_color"))
         playlist_frame.playlist = playlist
         playlist_frame.grid(row=0, column=col, padx=5, pady=5)
 
@@ -208,14 +206,14 @@ class AudioClientApp(tk.Tk):
         image.thumbnail((100, 100))
         photo = ImageTk.PhotoImage(image)
 
-        label_image = tk.Label(playlist_frame, image=photo, bg="#CCCCCC")
+        label_image = tk.Label(playlist_frame, image=photo, bg=inner_frame.cget("fg_color"))
         label_image.image = photo  # prevent
         label_image.playlist = playlist
         label_image.grid(row=0, column=0)
 
         # Title
         nn = playlist.name if len(playlist.name) < 12 else f"{playlist.name[:10]}..."
-        label_title = tk.Label(playlist_frame, text=nn, bg="#CCCCCC")
+        label_title = tk.Label(playlist_frame, text=nn, bg=inner_frame.cget("fg_color"))
         label_title.playlist = playlist
         ToolTip(label_title, playlist.name)
         label_title.grid(row=1, column=0)
@@ -225,7 +223,6 @@ class AudioClientApp(tk.Tk):
     def fetch_and_display(self):  # change to only display, fetch part will be in different file
         try:
             songs, playlists = self.controller.fetch_recommendations()
-
             # Schedule UI updates in main thread
             self.after(0, lambda: self.show_songs(songs, playlists))
 
@@ -234,21 +231,21 @@ class AudioClientApp(tk.Tk):
             print(e)
 
     def toggle_middle_frame(self):
-        if self.middle_frame.winfo_ismapped():
-            self.middle_frame.grid_remove()
+        if self.tab_view.winfo_ismapped():
+            self.tab_view.grid_remove()
             self.geometry("400x150")
         else:
-            self.geometry("400x500")
-            self.middle_frame.grid()
+            self.geometry("400x520")
+            self.tab_view.grid()
 
             threading.Thread(target=self.fetch_and_display, daemon=True).start()
 
     def show_songs(self, songs, playlists):
         # Scrollable canvas
 
-        self.display_songs_horizontaly(songs, self.inner_frame)
+        self.display_songs_horizontaly(songs, self.canvas)
         if self.controller.playlists != playlists or self.controller.playlists == []:
-            self.display_playlists_horizontaly(playlists, self.inner_frame2)
+            self.display_playlists_horizontaly(playlists, self.canvas2)
 
     def on_canvas_configure(self, event):
         print('event', event)
@@ -292,12 +289,6 @@ class AudioClientApp(tk.Tk):
             width=bar_height,
             fill="#888888"
         )
-        # Draw the handle (circle)
-        """self.slider_canvas.create_oval(
-            played_x, center_y - handle_radius,
-            played_x + 2 * handle_radius, center_y + handle_radius,
-            fill="#888888", outline="white", width=2
-        )"""
 
     # Mouse events
     def on_slider_press(self, event):
@@ -306,6 +297,8 @@ class AudioClientApp(tk.Tk):
 
     def on_slider_move(self, event):
         if self.dragging:
+            playback_time = (event.x / self.slider_canvas.winfo_width()) * self.controller.total_time
+            self.controller.played_time = playback_time
             self._update_position_from_click(event.x)
 
     def on_slider_release(self, event):
@@ -352,13 +345,13 @@ class AudioClientApp(tk.Tk):
         self.cover_label.config(image=self.cover_tk)
 
     def update_playlists(self):
-        self.display_playlists_horizontaly(self.controller.playlists, self.inner_frame2)
+        self.display_playlists_horizontaly(self.controller.playlists, self.canvas2)
 
 
 if __name__ == "__main__":
     gen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     gen_sock.connect(("localhost", 5001))
-    data = f"uv~1".encode()
+    data = f"1~1".encode()
     gen_sock.send(protocol.create_msg('LOGI', data))
     cmd, resp = protocol.get_msg(gen_sock)
     response, token = resp.decode().split('~')
