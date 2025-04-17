@@ -148,6 +148,8 @@ class PlaybackController:
         self.client.seek(time)
         listened_segment = PlaybackSegment(self.song_queue.current_song, self.started_playing_time
                                            , self.played_time, self.total_time)
+        msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)))
+        self.gen_socket.send(msg)
         self.history_segments.append(listened_segment)
         self.started_playing_time = time
 

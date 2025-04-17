@@ -202,9 +202,10 @@ class Recommender:
 
         # Add a bit of randomness to the similarity scores for exploration.
         randomized_recommendations = [
-            (song_id, sim * random.uniform(0.9, 1.1)) for song_id, sim in recommendations
+            (song_id, sim * random.uniform(0.95, 1.05)) for song_id, sim in recommendations
         ]
         randomized_recommendations.sort(key=lambda tup: tup[1], reverse=True)
+        recommendations.sort(key=lambda tup: tup[1], reverse=True)
         print(recommendations)
         songs = []
         for i, _ in randomized_recommendations:

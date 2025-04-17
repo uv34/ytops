@@ -231,7 +231,7 @@ class AudioClientApp(tk.Tk):
 
         except Exception as e:
             print(f"Error fetching songs: {e}")
-            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+            print(e)
 
     def toggle_middle_frame(self):
         if self.middle_frame.winfo_ismapped():
