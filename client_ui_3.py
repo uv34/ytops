@@ -14,32 +14,38 @@ def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
 
 
-class AudioClientApp(tk.Tk):
+class AudioClientApp(ctk.CTk):
     def __init__(self, token, gen_sock):
         super().__init__()
         self.title("Muniz Player sigmaboii123")
-        self.geometry("400x150")
+        self.geometry("400x160")
+        self.iconbitmap("favicon.ico")
+        self.primary_ui = "#A8DADC"
+        self.secondary_accent = "#F4C2C2"
+        self.success = "#C4E1C1"
+        self.background = "#E8E8FA"
+        self.prime_text = "#36454F"
+        self.second_text = "#A0A0A0"
+        self.configure(fg_color=self.background)
         self.resizable(False, False)
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
                                              , self.draw_slider_callback, self.update_playlists)
-        style = ttk.Style(self)
-        style.theme_use("clam")
-        # cover
+
+        self.song_info_label = ctk.CTkLabel(self, text="song name\n author", text_color=self.prime_text, font=("Nunito", 12))
+        self.song_info_label.grid(row=0, rowspan=2, column=1, columnspan=3, sticky='ew', padx=5, pady=5)
+
         pil_img = Image.open("default.jpg")
-        self.cover_tk = ImageTk.PhotoImage(pil_img)
+        self.cover_tk = ctk.CTkImage(pil_img, size=(64, 64))
 
-        self.cover_label = tk.Label(self, image=self.cover_tk, )
+        self.cover_label = ctk.CTkLabel(self, image=self.cover_tk, text='')
         self.cover_label.grid(row=0, column=0, columnspan=2, sticky='w', rowspan=2, padx=10, pady=10)
-
-        self.song_info_label = tk.Label(self, text="song name\n author")
-        self.song_info_label.grid(row=0, rowspan=2, column=2, columnspan=3, sticky='w', padx=5, pady=5)
 
         self.make_middle_frame()
 
         # Canvas that will serve as our slider
-        self.slider_canvas = tk.Canvas(self, width=300, height=10, bg=self.cget("bg"), highlightthickness=0)
-        self.slider_canvas.grid(row=3, column=1, columnspan=3, padx=5, pady=(10, 5))
+        self.slider_canvas = ctk.CTkCanvas(self, width=300, height=10, bg=self.cget("bg"), highlightthickness=0)
+        self.slider_canvas.grid(row=3, column=1, columnspan=3, padx=5)
         # Bind <Configure> so we know when the canvas size is finalized
         self.slider_canvas.bind("<Configure>", self.on_canvas_configure)
 
@@ -50,33 +56,43 @@ class AudioClientApp(tk.Tk):
         self.dragging = False
 
         # Playback time label
-        self.current_playback_label = tk.Label(self, text="0:00")
+        self.current_playback_label = ctk.CTkLabel(self, text="0:00", text_color=self.prime_text, font=("Nunito", 12))
         self.current_playback_label.grid(row=3, column=0, padx=10)
 
-        self.total_playback_label = tk.Label(self, text="0:00")
+        self.total_playback_label = ctk.CTkLabel(self, text="0:00", text_color=self.prime_text, font=("Nunito", 12))
         self.total_playback_label.grid(row=3, column=4, padx=10)
 
         # Buttons
-        self.volume_button = tk.Button(self, text="🔊")
-        self.volume_button.grid(row=4, column=0, sticky='e', padx=5, pady=5)
+        self.volume_button = ctk.CTkButton(self, text="🔊", width=10,
+                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 12)
+                                           , hover_color=self.primary_ui)
+        self.volume_button.grid(row=4, column=0, sticky='e', padx=5,)
         self.volume_popup = VolumePopup(self.volume_button, self)
-        self.volume_button.config(command=self.volume_popup.show)
+        self.volume_button.configure(command=self.volume_popup.show)
 
-        self.prev_button = tk.Button(self, text="⏮", command=self.controller.prev_button)
-        self.prev_button.grid(row=4, column=1, sticky='e', padx=5, pady=5)
+        self.prev_button = ctk.CTkButton(self, text="⏮", command=self.controller.prev_button, width=15, height=40,
+                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
+                                           , hover_color=self.primary_ui)
+        self.prev_button.grid(row=4, column=1, sticky='e', padx=5)
 
-        self.pause_button = tk.Button(self, text="⏸︎", command=self.controller.pause_stream, state=tk.DISABLED)
-        self.pause_button.grid(row=4, column=2, sticky='', padx=5, pady=5)
+        self.pause_button = ctk.CTkButton(self, text="⏸︎", command=self.controller.pause_stream, state=ctk.DISABLED, width=15, height=40,
+                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
+                                           , hover_color=self.primary_ui, text_color_disabled=self.second_text)
+        self.pause_button.grid(row=4, column=2, sticky='', padx=5)
 
-        self.start_button = tk.Button(self, text="⏭", command=self.controller.start_button)
-        self.start_button.grid(row=4, column=3, sticky='w', padx=5, pady=5)
+        self.start_button = ctk.CTkButton(self, text="⏭", command=self.controller.start_button, width=15, height=40,
+                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
+                                           , hover_color=self.primary_ui)
+        self.start_button.grid(row=4, column=3, sticky='w', padx=5)
 
-        self.toggle_button = tk.Button(self, text="☰", command=self.toggle_middle_frame)
-        self.toggle_button.grid(row=4, column=4, sticky='w', padx=5, pady=5)
+        self.toggle_button = ctk.CTkButton(self, text="☰", command=self.toggle_middle_frame, width=10,
+                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 12)
+                                           , hover_color=self.primary_ui)
+        self.toggle_button.grid(row=4, column=4, sticky='w', padx=5)
 
     def make_middle_frame(self):
-        self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color='#cccccc')
-        self.tab_view.grid(row=2, column=0, sticky="ew", padx=10, pady=5, columnspan=5)
+        self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color=self.background)
+        self.tab_view.grid(row=2, column=0, sticky="ew", padx=5, pady=5, columnspan=6)
         self.tab_view.add('songs')
         self.tab_view.tab('songs').configure(fg_color=self.tab_view.cget("fg_color"))
         self._build_songs_tab(self.tab_view.tab("songs"))
@@ -84,28 +100,48 @@ class AudioClientApp(tk.Tk):
         self.tab_view.grid_remove()
 
     def _build_songs_tab(self, parent):
+        self.search_frame = ctk.CTkFrame(parent,
+                                    corner_radius=8,
+                                    fg_color=("gray70", "gray30"),
+                                    height=32)
 
-        self.search_bar = tk.Entry(parent)
-        self.search_bar.grid(row=0, column=0, sticky="e", padx=10, pady=5)
-        self.search_button = tk.Button(parent, text="🔍", command=self.search_songs)
-        self.search_button.grid(row=0, column=1, sticky="e", padx=5, pady=5)
-        self.canvas = ctk.CTkScrollableFrame(parent, height=100, width=360, orientation="horizontal", fg_color=parent.cget("fg_color"))
+        self.search_frame.grid(row=0, column=0, sticky="e", padx=10, pady=5)
+        self.search_entry = ctk.CTkEntry(self.search_frame,
+                                  border_width=0,
+                                  fg_color="transparent",
+                                  placeholder_text="Type and press Enter…")
+        self.search_entry.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        self.search_entry.bind("<Return>", self.search_songs)
+
+        # the icon-button on the right
+        self.icon_btn = ctk.CTkButton(self.search_frame,
+                                 text="🔍",
+                                 width=32, height=32,
+                                 fg_color="transparent",
+                                 hover_color=("gray80", "gray40"),
+                                 command=lambda: self.search_songs(None))
+        self.icon_btn.pack(side="right", padx=4)
+
+        self.canvas = ctk.CTkScrollableFrame(parent, height=100, width=360, orientation="horizontal"
+                                             , fg_color=parent.cget("fg_color"))
         self.canvas.grid(row=1, column=0, sticky="nsew", pady=10, columnspan=2)
-        # Second canvas and its scrollbar
-        self.canvas2 = ctk.CTkScrollableFrame(parent, height=100, orientation="horizontal", fg_color=parent.cget("fg_color"))
+
+        # Second ca nvas and its scrollbar
+        self.canvas2 = ctk.CTkScrollableFrame(parent, height=100, orientation="horizontal"
+                                               , fg_color=parent.cget("fg_color"))
         self.canvas2.grid(row=2, column=0, sticky="nsew", pady=(10, 0), columnspan=2)
 
-    def search_songs(self):
-        search_term = self.search_bar.get()
+    def search_songs(self, event):
+        search_term = self.search_entry.get()
         if search_term:
             songs = self.controller.search(search_term)
             self.display_songs_horizontaly(songs, self.canvas)
 
     def disable_pause_button(self):
-        self.pause_button.config(state=tk.DISABLED)
+        self.pause_button.configure(state=tk.DISABLED)
 
     def enable_pause_button(self):
-        self.pause_button.config(state=tk.NORMAL)
+        self.pause_button.configure(state=tk.NORMAL)
 
     def click_playlist_frame(self, event):
         PlaylistInfoFrame(self, event.widget.playlist)
@@ -132,6 +168,10 @@ class AudioClientApp(tk.Tk):
         menu.post(event.x_root, event.y_root)
 
     def display_songs_horizontaly(self, songs, inner_frame):
+
+        for w in inner_frame.winfo_children():  # clear old widgets
+            w.destroy()
+
         for col, song in enumerate(songs):
             # Song block
             song_frame = tk.Frame(inner_frame, padx=5, pady=5, bg=inner_frame.cget("fg_color"))
@@ -233,9 +273,9 @@ class AudioClientApp(tk.Tk):
     def toggle_middle_frame(self):
         if self.tab_view.winfo_ismapped():
             self.tab_view.grid_remove()
-            self.geometry("400x150")
+            self.geometry("400x160")
         else:
-            self.geometry("400x520")
+            self.geometry("400x530")
             self.tab_view.grid()
 
             threading.Thread(target=self.fetch_and_display, daemon=True).start()
@@ -324,9 +364,9 @@ class AudioClientApp(tk.Tk):
             total_s = 1
         self.controller.total_time = total_s
         self.controller.played_time = played_s
-        self.current_playback_label.config(text=time_str(played_s))
+        self.current_playback_label.configure(text=time_str(played_s))
         if self.controller.total_time > 0:
-            self.total_playback_label.config(text=time_str(total_s))
+            self.total_playback_label.configure(text=time_str(total_s))
         if not self.dragging:
             self.draw_slider()
 
@@ -334,7 +374,7 @@ class AudioClientApp(tk.Tk):
         self.after(0, self.draw_slider)
 
     def update_song_label(self):
-        self.song_info_label.config(
+        self.song_info_label.configure(
             text=f"{self.controller.client.song_name}\n{self.controller.client.author} - {self.controller.client.album}"
         )
 

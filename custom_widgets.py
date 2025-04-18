@@ -1,5 +1,6 @@
 import threading
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
@@ -190,7 +191,7 @@ class PlaylistFrame:
         def _upload_image():
             self.filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg")])
             if self.filepath:
-                img = Image.open(self.filepath)     
+                img = Image.open(self.filepath)
                 img_resized = img.resize((100, 100))
                 img_tk = ImageTk.PhotoImage(img_resized)
                 self.image_label.config(image=img_tk)
