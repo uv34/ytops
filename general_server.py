@@ -83,6 +83,25 @@ class StopifyServer:
         print('updated user profile', user_id)
         self.db.mark_segments_used(user_id, THRESHOLD)
 
+    def hybrid_search(self, songs, query, n=10, cutoff=0.6):
+        q = query.lower().strip()
+
+        # first check for enough results no fuzzy
+        results = [(sid, title) for (sid, title) in songs if title.lower().startswith(q)]
+        if len(results) >= n:
+            return results[:n]
+
+        prefix_fuzzy = []
+        for sid, title in songs:
+            if (sid, title) in results:
+                continue
+            low = title.lower()
+            slice_ = low[:len(q)]
+            score = difflib.SequenceMatcher(None, q, slice_).ratio()
+            if score >= cutoff:
+                prefix_fuzzy.append((sid, title))
+        results.extend(prefix_fuzzy)
+        return results[:n]
 
     def send_msg(self, client_socket, cmd, data):
         msg = protocol.create_msg(cmd, data)
@@ -210,9 +229,13 @@ class StopifyServer:
         if not data.count(b'~') == 1:
             return b'NO'
         all_song_names = self.db.get_all_song_names()
-        query = data.split(b'~')[1].decode()
-        close = difflib.get_close_matches(query, [song[1] for song in all_song_names], n=5, cutoff=0.6)
+        query = data.split(b'~')[1].decode().lower()
+        n = 5
+        close = difflib.get_close_matches(query, [song[1].lower() for song in all_song_names], n=n, cutoff=0.6)
         matches = [(sid, title) for (sid, title) in all_song_names if title in close]
+        if len(matches) < n:
+            additions = self.hybrid_search(all_song_names, query, n=n - len(matches))
+            matches.extend(additions)
         print('matches', matches)
         songs = []
         for song_id, name in matches:
@@ -223,8 +246,9 @@ class StopifyServer:
                 song_cover = f.read()
             song_coverb64 = base64.b64encode(song_cover)
             s = Song(song['id'], song['name'], song['author'], album['name'],
-                     song_coverb64)  # mabye change to the songs real cover
+                     song_coverb64)
             songs.append(s)
+
         print('songs', songs)
         return pickle.dumps(songs)
 

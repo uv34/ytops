@@ -27,6 +27,7 @@ class AudioClientApp(ctk.CTk):
         self.prime_text = "#36454F"
         self.second_text = "#A0A0A0"
         self.configure(fg_color=self.background)
+
         self.resizable(False, False)
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
@@ -190,7 +191,7 @@ class AudioClientApp(ctk.CTk):
             label_image.grid(row=0, column=0)
 
             # Title
-            nn = song.name if len(song.name) < 12 else f"{song.name[:10]}   ..."
+            nn = song.name if len(song.name) < 12 else f"{song.name[:10]}..."
             label_title = tk.Label(song_frame, text=nn, bg=inner_frame.cget("fg_color"))
             label_title.song = song
 
