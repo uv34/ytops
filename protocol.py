@@ -65,5 +65,3 @@ def get_msg(other_socket):
 
     except ValueError as e:
         return ("ERR1", f"ValueError: {e}".encode())
-    except Exception as e:
-        return ("ERR1", f"Exception: {e}".encode())

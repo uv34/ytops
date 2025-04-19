@@ -92,13 +92,20 @@ class AudioClientApp(ctk.CTk):
         self.toggle_button.grid(row=4, column=4, sticky='w', padx=5)
 
     def make_middle_frame(self):
-        self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color=self.background)
+        self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color=self.background, command=self.on_tab_change)
         self.tab_view.grid(row=2, column=0, sticky="ew", padx=5, pady=5, columnspan=6)
         self.tab_view.add('songs')
         self.tab_view.tab('songs').configure(fg_color=self.tab_view.cget("fg_color"))
+        self.tab_view.add('queue')
+        self.tab_view.tab('queue').configure(fg_color=self.tab_view.cget("fg_color"))
         self._build_songs_tab(self.tab_view.tab("songs"))
+        self._build_queue_tab(self.tab_view.tab("queue"))
 
         self.tab_view.grid_remove()
+
+    def on_tab_change(self):
+        if self.tab_view.get() == "queue":
+            self.load_queue()
 
     def _build_songs_tab(self, parent):
         self.search_frame = ctk.CTkFrame(parent,
@@ -130,24 +137,63 @@ class AudioClientApp(ctk.CTk):
         # Second ca nvas and its scrollbar
         self.canvas2 = ctk.CTkScrollableFrame(parent, height=100, orientation="horizontal"
                                                , fg_color=parent.cget("fg_color"))
-        self.canvas2.grid(row=2, column=0, sticky="nsew", pady=(10, 0), columnspan=2)
+        self.canvas2.grid(row=2, column=0, sticky="nsew", pady=10, columnspan=2)
+
+    def _add_song_row(self, song):
+        # Container frame for a single song
+        row = tk.Frame(self.queue_frame, bg=self.cget("fg_color"))
+        row.pack(fill="x", pady=2)
+
+        try:
+            img_data = base64.b64decode(song.coverb64)
+            song_img = Image.open(io.BytesIO(img_data))
+        except Exception:
+            print("Error loading image, using default")
+            song_img = Image.new("RGB", (40, 40), color="gray")
+        song_img.thumbnail((40, 40))
+        song_img_tk = ImageTk.PhotoImage(song_img)
+        self.queue_frame.covers.append(song_img_tk)
+
+        # Image label for song cover
+        img_label = tk.Label(row, image=song_img_tk, bg=self.cget("fg_color"))
+        img_label.pack(side="left", padx=5)
+
+        # Text label for song name and author
+        song_text = f"{song.name} - {song.author}"
+        text_label = tk.Label(row, text=song_text, bg=self.cget("fg_color"), fg=self.prime_text, anchor="w")
+        text_label.pack(side="left", fill="x", expand=True)
+
+    def _build_queue_tab(self, parent):
+        self.queue_frame = ctk.CTkScrollableFrame(parent, height=294, width=354, orientation="vertical"
+                                                   , fg_color=parent.cget("fg_color"))
+        self.queue_frame.covers = []
+        self.queue_frame.grid(row=0, column=0, sticky="e", pady=10, columnspan=2)
+
+    def load_queue(self):
+        for widget in self.queue_frame.winfo_children():
+            widget.destroy()
+        for song in self.controller.song_queue.queue:
+            self._add_song_row(song)
 
     def search_songs(self, event):
         search_term = self.search_entry.get()
         if search_term:
             songs = self.controller.search(search_term)
-            self.display_songs_horizontaly(songs, self.canvas)
+            if songs:
+                print('displaying songs', songs)
+                self.display_songs_horizontaly(songs, self.canvas)
 
     def disable_pause_button(self):
-        self.pause_button.configure(state=tk.DISABLED)
+        self.after(0, lambda: self.pause_button.configure(state=tk.DISABLED))
 
     def enable_pause_button(self):
-        self.pause_button.configure(state=tk.NORMAL)
+        self.after(0, lambda: self.pause_button.configure(state=tk.NORMAL))
 
     def click_playlist_frame(self, event):
         PlaylistInfoFrame(self, event.widget.playlist)
 
     def click_add_playlist(self, event):
+
         PlaylistFrame(self)
 
     def show_playlist_action_menu(self, event):
@@ -382,8 +428,9 @@ class AudioClientApp(ctk.CTk):
     def update_cover(self):
         img = io.BytesIO(self.controller.client.cover)
         pil_img = Image.open(img)
-        self.cover_tk = ImageTk.PhotoImage(pil_img)
-        self.cover_label.config(image=self.cover_tk)
+        cover = ctk.CTkImage(pil_img, size=(64, 64))
+        self.after(0, lambda: self.cover_label.configure(image=cover))
+        self.cover_tk = cover
 
     def update_playlists(self):
         self.display_playlists_horizontaly(self.controller.playlists, self.canvas2)

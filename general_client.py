@@ -1,6 +1,7 @@
 import socket
 import threading
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import messagebox
 import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
 import client_ui_3
@@ -18,11 +19,20 @@ class LoginRegisterWindow(tk.Tk):
         self.logged_in_username = None
         self.token = '###'
 
-        self.login_frame = tk.Frame(self)
-        self.register_frame = tk.Frame(self)
-        self.build_login_ui()
-        self.build_register_ui()
-        self.show_login_frame()
+        self.primary_ui = "#A8DADC"
+        self.secondary_accent = "#F4C2C2"
+        self.success = "#C4E1C1"
+        self.background = "#E8E8FA"
+        self.prime_text = "#36454F"
+        self.second_text = "#A0A0A0"
+
+        self.tabview = ctk.CTkTabview(self, width=380, height=300, fg_color=self.background)
+        self.tabview.pack(padx=20, pady=20)
+        self.login_tab = self.tabview.add("Login")
+        self.register_tab = self.tabview.add("Register")
+
+        self.build_login_tab()
+        self.build_register_tab()
 
     def destroy1(self):
         for after_id in self.tk.call('after', 'info'):
@@ -30,35 +40,63 @@ class LoginRegisterWindow(tk.Tk):
 
         super().destroy()
 
-    def build_login_ui(self):
-        frame = self.login_frame
-        tk.Label(frame, text="Username:").grid(row=0, column=0, sticky=tk.E)
-        self.login_username_entry = tk.Entry(frame)
-        self.login_username_entry.grid(row=0, column=1)
-        tk.Label(frame, text="Password:").grid(row=1, column=0, sticky=tk.E)
-        self.login_password_entry = tk.Entry(frame, show="*")
-        self.login_password_entry.grid(row=1, column=1)
-        tk.Button(frame, text="Login", command=self.login).grid(row=2, column=0, columnspan=2, pady=5)
-        tk.Button(frame, text="Go to Register", command=self.show_register_frame).grid(row=3, column=0, columnspan=2, pady=5)
+    def build_login_tab(self):
+        pad_y = 12
+        # Username
+        ctk.CTkLabel(self.login_tab, text="Username", text_color=self.prime_text).pack(anchor="w", pady=(10, 4),
+                                                                                       padx=20)
+        self.login_username_entry = ctk.CTkEntry(
+            self.login_tab, placeholder_text="Enter username",
+            fg_color="white", text_color=self.prime_text)
+        self.login_username_entry.pack(fill="x", padx=20)
 
-    def build_register_ui(self):
-        frame = self.register_frame
-        tk.Label(frame, text="Username:").grid(row=0, column=0, sticky=tk.E)
-        self.register_username_entry = tk.Entry(frame); self.register_username_entry.grid(row=0, column=1)
-        tk.Label(frame, text="Email:").grid(row=1, column=0, sticky=tk.E)
-        self.register_email_entry = tk.Entry(frame); self.register_email_entry.grid(row=1, column=1)
-        tk.Label(frame, text="Password:").grid(row=2, column=0, sticky=tk.E)
-        self.register_password_entry = tk.Entry(frame, show="*"); self.register_password_entry.grid(row=2, column=1)
-        tk.Button(frame, text="Register", command=self.register).grid(row=3, column=0, columnspan=2, pady=5)
-        tk.Button(frame, text="Back to Login", command=self.show_login_frame).grid(row=4, column=0, columnspan=2, pady=5)
+        # Password
+        ctk.CTkLabel(self.login_tab, text="Password", text_color=self.prime_text).pack(anchor="w", pady=(pad_y, 4),
+                                                                                       padx=20)
+        self.login_password_entry = ctk.CTkEntry(
+            self.login_tab, placeholder_text="Enter password", show="*",
+            fg_color="white", text_color=self.prime_text)
+        self.login_password_entry.pack(fill="x", padx=20)
 
-    def show_login_frame(self):
-        self.register_frame.pack_forget()
-        self.login_frame.pack(padx=10, pady=10)
+        login_btn = ctk.CTkButton(
+            self.login_tab, text="Login",
+            fg_color=self.primary_ui, hover_color=self.success,
+            text_color=self.prime_text, command=self.login)
+        login_btn.pack(side="left", expand=True, padx=(0, 5))
 
-    def show_register_frame(self):
-        self.login_frame.pack_forget()
-        self.register_frame.pack(padx=10, pady=10)
+
+    def build_register_tab(self):
+        pad_y = 12
+        # Username
+        ctk.CTkLabel(self.register_tab, text="Username", text_color=self.prime_text).pack(anchor="w", pady=(10, 4),
+                                                                                          padx=20)
+        self.register_username_entry = ctk.CTkEntry(
+            self.register_tab, placeholder_text="Choose username",
+            fg_color="white", text_color=self.prime_text)
+        self.register_username_entry.pack(fill="x", padx=20)
+
+        # Email
+        ctk.CTkLabel(self.register_tab, text="Email", text_color=self.prime_text).pack(anchor="w", pady=(pad_y, 4),
+                                                                                       padx=20)
+        self.register_email_entry = ctk.CTkEntry(
+            self.register_tab, placeholder_text="Your email",
+            fg_color="white", text_color=self.prime_text)
+        self.register_email_entry.pack(fill="x", padx=20)
+
+        # Password
+        ctk.CTkLabel(self.register_tab, text="Password", text_color=self.prime_text).pack(anchor="w", pady=(pad_y, 4),
+                                                                                          padx=20)
+        self.register_password_entry = ctk.CTkEntry(
+            self.register_tab, placeholder_text="Choose password", show="*",
+            fg_color="white", text_color=self.prime_text)
+        self.register_password_entry.pack(fill="x", padx=20)
+
+        register_btn = ctk.CTkButton(
+            self.register_tab, text="Register",
+            fg_color=self.primary_ui, hover_color=self.success,
+            text_color=self.prime_text, command=self.register)
+        register_btn.pack(side="left", expand=True, padx=(0, 5))
+
 
     def connect(self):
         if self.client_socket is None:

@@ -75,7 +75,7 @@ class OggServer:
         """
         Handles client requests for streaming an Ogg Vorbis file.
         - Reads & validates "RQST song.ogg~time" -> extracts metadata (pages, duration, sample rate).
-        - Sends "PGNM" response with playback details or "ERR" if invalid request.
+        - Sends "PGNM" 2response with playback details or "ERR" if invalid request.
         - Determines stream start: from 0 (if within headers) or re-injects headers & seeks.
         - Streams Ogg pages -> listens for "STOP" in a separate thread.
         - Sends "SCNF" on completion, cleans up, and closes connection.

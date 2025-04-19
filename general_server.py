@@ -27,6 +27,7 @@ def verify_token(token):
     try:
         print('checking token', token)
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        print('checked token', payload)
         return payload
     except Exception as e:
         print('invalid token')
@@ -38,6 +39,7 @@ class User:
         self.id = id
         self.username = username
         self.status = status
+        self.connected = True
 
 
 class StopifyServer:
@@ -109,9 +111,15 @@ class StopifyServer:
         self.log('Sent', client_socket, msg)
 
     def recv_msg(self, client_socket):
-        cmd, data = protocol.get_msg(client_socket)
-        self.log('Received', client_socket, f'{cmd} {data}')
-        return cmd, data
+        try:
+            cmd, data = protocol.get_msg(client_socket)
+            self.log('Received', client_socket, f'{cmd} {data}')
+            return cmd, data
+        except ConnectionError as e:
+            print(f"Connection error: {e}")
+            client_socket.close()
+            self.client_users[client_socket].connected = False
+            return None, None
 
     def handle_login(self, data, client_socket):
         if not self.check_creds_logi(data):
@@ -280,6 +288,9 @@ class StopifyServer:
         while True:
             #  try:
             cmd, data = self.recv_msg(client_socket)
+            if not self.client_users[client_socket].connected:
+                print('client disconnected')
+                break
             if cmd == 'EXIT':
                 print('client disconnected')
                 break

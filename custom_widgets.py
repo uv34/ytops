@@ -260,7 +260,7 @@ class VolumePopup:
         # Close popup when focus is lost
         tw.bind("<FocusOut>", lambda e: self.hide())
         # Create volume slider inside popup
-        slider = ttk.Scale(
+        slider = tk.Scale(
             tw,
             from_=0,
             to=100,

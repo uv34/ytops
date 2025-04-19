@@ -40,26 +40,31 @@ class PlaybackController:
     def click_song_frame(self, event):
         """self.stop_stream()
         self.start_after_stop(event.widget.song_id)"""
-        self.song_queue.add_song(event.widget.song.song_id)
+        self.song_queue.add_song(event.widget.song)
         if not self.stream_thread:
             self.stop_stream()
             self.song_queue.next()
-            self.start_after_stop(self.song_queue.current_song)
+            self.start_after_stop(self.song_queue.current_song.song_id)
 
     #  -=- functionality -=-
     def play_playlist(self, p):
-        self.stop_stream()
-        self.skipped = True
-        self.song_queue.clear()
-        for song in p.songs:
-            self.song_queue.add_song(song.song_id)
-        if not self.stream_thread:
+        def _real_play(p):
+            self.skipped = True
+            self.stop_stream()
+            self._wait_for_stop()
+            self.song_queue.clear()
+            for song in p.songs:
+                self.song_queue.add_song(song)
             self.song_queue.next()
-        print(self.song_queue)
-        self.start_after_stop(self.song_queue.current_song)
 
-        print("queue", list(self.song_queue.queue))
-        print("history", list(self.song_queue.history))
+            self.start_stream(self.song_queue.current_song.song_id)
+        thread = threading.Thread(target=_real_play, args=(p,), daemon=True)
+        thread.start()
+
+    def _wait_for_stop(self):
+        if self.stream_thread and self.stream_thread.is_alive():
+            timer = threading.Timer(0.1, self._wait_for_stop)
+            timer.start()
 
     def create_playlist(self, name, cover_file):
         with open(cover_file, "rb") as cover_file:
@@ -158,7 +163,7 @@ class PlaybackController:
 
     def seek(self, time):
         self.client.seek(time)
-        listened_segment = PlaybackSegment(self.song_queue.current_song, self.started_playing_time
+        listened_segment = PlaybackSegment(self.song_queue.current_song.song_id, self.started_playing_time
                                            , self.played_time, self.total_time)
         msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)))
         self.gen_socket.send(msg)
@@ -207,16 +212,16 @@ class PlaybackController:
                 self.update_status(f"Error: {e}")
                 print(f"Error")
             finally:
-                listened_segment = PlaybackSegment(self.song_queue.current_song, self.started_playing_time
-                                                   , self.played_time, self.total_time)
-                msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)))
-                self.gen_socket.send(msg)
-                self.history_segments.append(listened_segment)
                 if not self.skipped:
                     self.song_queue.next()
                 self.skipped = False
                 if self.song_queue.current_song:
-                    self.start_after_stop(self.song_queue.current_song)
+                    listened_segment = PlaybackSegment(self.song_queue.current_song.song_id, self.started_playing_time
+                                                       , self.played_time, self.total_time)
+                    msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)))
+                    self.gen_socket.send(msg)
+                    self.history_segments.append(listened_segment)
+                    self.start_after_stop(self.song_queue.current_song.song_id)
                 else:
                     print('no song')
                     self.pause_disable_callback()
@@ -238,10 +243,7 @@ class PlaybackController:
             if self.client and self.client.cover != b'':
                 # Update the text label with metadata
                 self.update_song_callback()
-                try:
-                    self.update_cover_callback()
-                except Exception as e:
-                    print(f"Error loading cover image: {e}")
+                self.update_cover_callback()
             if self.client:
                 timer = threading.Timer(0.1, check_metadata)
                 timer.start()
