@@ -179,7 +179,9 @@ def main():
         tk._default_root = None
         print(token)
         client_ui_3.AudioClientApp(token, sock).mainloop()
-        sock.send(protocol.create_msg('EXIT', b''))
+        if sock:
+            print(sock)
+            sock.send(protocol.create_msg('EXIT', b''))
 
 
 if __name__ == "__main__":

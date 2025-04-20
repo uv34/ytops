@@ -47,6 +47,14 @@ class PlaybackController:
             self.start_after_stop(self.song_queue.current_song.song_id)
 
     #  -=- functionality -=-
+
+    def logout(self):
+        self.stop_stream()
+        self.stream_thread = None
+        self.client = None
+        self.gen_socket.send(protocol.create_msg('EXIT', b''))
+        self.gen_socket.close()
+
     def play_playlist(self, p):
         def _real_play(p):
             self.skipped = True

@@ -3,12 +3,12 @@ import threading
 import tkinter
 from tkinter import messagebox
 import customtkinter as ctk
-
+from tkinter import TclError
 
 import protocol
 from client import PlaybackController
 from custom_widgets import *
-
+import general_client
 
 def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
@@ -98,8 +98,11 @@ class AudioClientApp(ctk.CTk):
         self.tab_view.tab('songs').configure(fg_color=self.tab_view.cget("fg_color"))
         self.tab_view.add('queue')
         self.tab_view.tab('queue').configure(fg_color=self.tab_view.cget("fg_color"))
+        self.tab_view.add('social')
+        self.tab_view.tab('social').configure(fg_color=self.tab_view.cget("fg_color"))
         self._build_songs_tab(self.tab_view.tab("songs"))
         self._build_queue_tab(self.tab_view.tab("queue"))
+        self._build_social_tab(self.tab_view.tab("social"))
 
         self.tab_view.grid_remove()
 
@@ -174,6 +177,22 @@ class AudioClientApp(ctk.CTk):
             widget.destroy()
         for song in self.controller.song_queue.queue:
             self._add_song_row(song)
+
+    def _build_social_tab(self, parent):
+        self.logout_button = ctk.CTkButton(parent, text="Logout", command=self.logout
+                                           ,fg_color=self.background, text_color=self.prime_text, font=("Nunito", 12)
+                                           , hover_color=self.primary_ui)
+        self.logout_button.grid(row=0, column=0, sticky='e', padx=5, pady=5)
+
+    def logout(self):
+        self.controller.logout()
+        super().destroy()
+
+        # now show the login/register dialog
+        success, user, token, sock = general_client.run_login_register_window()
+        tk._default_root = None
+        if user and success:
+            AudioClientApp(token, sock).mainloop()
 
     def search_songs(self, event):
         search_term = self.search_entry.get()
