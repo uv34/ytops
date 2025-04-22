@@ -82,6 +82,7 @@ class PlaybackController:
         cmd, data = protocol.get_msg(self.gen_socket)
         if cmd == "CRPL":
             if data[:2].decode() == "OK":
+                print('adding playlist')
                 self._add_playlists_to_shown(pickle.loads(data[2:]))
                 print("Success", "Playlist created successfully!")
             else:
@@ -89,6 +90,7 @@ class PlaybackController:
 
     def _add_playlists_to_shown(self, p):
         self.playlists.append(p)
+        print('playlists:', self.playlists)
         self.update_playlist_callback()
         print('added', p)
 

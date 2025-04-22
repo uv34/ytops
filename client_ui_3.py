@@ -270,6 +270,7 @@ class AudioClientApp(ctk.CTk):
 
     def display_playlists_horizontaly(self, playlists, inner_frame):
         self.controller.playlists = playlists
+        print('displaying playlists', playlists)
 
         for w in inner_frame.winfo_children():  # clear old widgets
             w.destroy()
@@ -452,6 +453,7 @@ class AudioClientApp(ctk.CTk):
         self.cover_tk = cover
 
     def update_playlists(self):
+        print('ui updating playlists')
         self.display_playlists_horizontaly(self.controller.playlists, self.canvas2)
 
 

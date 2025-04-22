@@ -211,7 +211,7 @@ class StopifyServer:
         if not data.count(b'~') == 1:
             return b'NO'
         _, playlist_id = data.split(b'~')
-        if self.db.delete_playlist(playlist_id.decode()):
+        if self.db.delete_playlist(playlist_id.decode()) and os.path.exists(f'playlists/{playlist_id.decode()}.jpg'):
             os.remove(f'playlists/{playlist_id.decode()}.jpg')
             print('removed playlist', playlist_id.decode())
             return b'OK'
@@ -231,7 +231,7 @@ class StopifyServer:
         """except Exception as e:
             print(f"Error adding segment to user: {e}")
             return b'NO'"""
-        return b'OK'
+        return None
 
     def handle_ssis(self, data, payload):
         if not data.count(b'~') == 1:
@@ -300,8 +300,9 @@ class StopifyServer:
                 data = data[1:]
                 response = self.handle_cmd(payload, cmd, data)
                 print('response:', response)
-                msg = protocol.create_msg(cmd, response)
-                client_socket.send(msg)
+                if response is not None:
+                    msg = protocol.create_msg(cmd, response)
+                    client_socket.send(msg)
             """except Exception as e:
                 print(f'Error: {e}')
                 break"""
