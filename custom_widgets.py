@@ -8,7 +8,64 @@ import base64
 from song import *
 import io
 
+class FollowFrame:
+    def __init__(self, parent):
+        self.parent = parent
+        self.frame_width = 300
+        self.frame_height = 350
+        self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
+        self.create_widgets()
+        self.place_frame()
 
+    def create_widgets(self):
+        # Playlist Title Entry
+        self.title_entry = ctk.CTkEntry(self.frame, font=("Arial", 12), placeholder_text="Jon Doe",
+                                    fg_color="#2e2e2e", text_color="white")
+        self.title_entry.place(relx=0.5, y=100, anchor="n", relwidth=0.8)
+
+        self.suggustion_frame = ctk.CTkScrollableFrame(self.frame, fg_color="#2e2e2e", height=100)
+        self.suggustion_frame._scrollbar.configure(height=20)
+        self.suggustion_frame.place(relx=0.5, y=130, anchor="n")
+        # Button frame for Create and Cancel buttons
+        self.button_frame = tk.Frame(self.frame, bg="#1e1e1e")
+        self.button_frame.place(relx=0.5, y=250, anchor="n")
+
+        self.cancel_button = tk.Button(self.button_frame, text="Cancel", bg="#3e3e3e", fg="white", width=10, command=self.destroy)
+        self.cancel_button.pack(side="left", padx=5)
+        self.title_entry.bind("<KeyRelease>", self.update_suggestions)
+
+    def update_suggestions(self, event):
+        suggestions = self.parent.controller.user_search_suggestions(self.title_entry.get())
+        print('recieved suggestions', suggestions)
+        # Clear previous suggestions
+        for widget in self.suggustion_frame.winfo_children():
+            widget.destroy()
+
+        if suggestions == [""]:
+            return
+        for suggestion in suggestions:
+            row = tk.Frame(self.suggustion_frame, bg="#2e2e2e")
+            row.pack(fill="x", pady=2, padx=5)
+            label = tk.Label(row, text=suggestion, bg="#2e2e2e", fg="white")
+            label.pack(side="left")
+            follow_button = ctk.CTkButton(row, text="Follow", command=lambda: self.follow(suggestion), width=10)
+            follow_button.pack(side="right")
+
+    def follow(self, username):
+        self.parent.controller.follow(username)
+        self.destroy()
+
+    def place_frame(self):
+        # Center the frame in the parent window
+        self.parent.update_idletasks()
+        parent_width = self.parent.winfo_width()
+        parent_height = self.parent.winfo_height()
+        x = (parent_width - self.frame_width) // 2
+        y = (parent_height - self.frame_height) // 2
+        self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
+
+    def destroy(self):
+        self.frame.destroy()
 class PlaylistInfoFrame:
     def __init__(self, parent, playlist):
         self.parent = parent
@@ -16,8 +73,7 @@ class PlaylistInfoFrame:
         self.frame_width = 300
         self.frame_height = 350
         self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
-        # List to hold references to song images to prevent garbage collection
-        self.song_images = []
+        self.song_images = [] # List to hold references to song images to prevent garbage collection
         self.create_widgets()
         self.place_frame()
 

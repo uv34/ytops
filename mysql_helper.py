@@ -22,6 +22,14 @@ class DBController:
         )
         self.conn.autocommit = False
 
+    def get_all_users(self):
+        cursor = self.conn.cursor()
+        query = "SELECT id, username FROM `user`"
+        cursor.execute(query)
+        users = cursor.fetchall()
+        cursor.close()
+        return users
+
     def create_album(self, name, author, cover):
         cursor = self.conn.cursor()
         query = "INSERT INTO album (name, author, cover) VALUES (%s, %s, %s)"

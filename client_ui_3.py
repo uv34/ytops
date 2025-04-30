@@ -15,7 +15,7 @@ def time_str(time: float) -> str:
 
 
 class AudioClientApp(ctk.CTk):
-    def __init__(self, token, gen_sock):
+    def __init__(self, token, gen_sock, username):
         super().__init__()
         self.title("Muniz Player sigmaboii123")
         self.geometry("400x160")
@@ -29,6 +29,8 @@ class AudioClientApp(ctk.CTk):
         self.configure(fg_color=self.background)
 
         self.resizable(False, False)
+
+        self.username = username
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
                                              , self.draw_slider_callback, self.update_playlists)
@@ -179,10 +181,63 @@ class AudioClientApp(ctk.CTk):
             self._add_song_row(song)
 
     def _build_social_tab(self, parent):
-        self.logout_button = ctk.CTkButton(parent, text="Logout", command=self.logout
-                                           ,fg_color=self.background, text_color=self.prime_text, font=("Nunito", 12)
-                                           , hover_color=self.primary_ui)
-        self.logout_button.grid(row=0, column=0, sticky='e', padx=5, pady=5)
+        self.social_canvas = ctk.CTkScrollableFrame(
+            parent,
+            width=354,
+            orientation="vertical",
+            fg_color=parent.cget("fg_color")
+        )
+        self.social_canvas.pack(padx=10, pady=10)
+
+        top_bar = ctk.CTkFrame(self.social_canvas, fg_color=self.cget("fg_color"))
+        top_bar.pack(fill="x", pady=(0, 5))
+
+        user_label = ctk.CTkLabel(
+            top_bar,
+            fg_color=self.cget("fg_color"),
+            text_color=self.prime_text,
+            text=f"username: {self.username}",
+            anchor="w"
+        )
+        user_label.pack(side="left", padx=(0, 10))
+
+        self.logout_button = ctk.CTkButton(
+            top_bar,
+            text="↩",
+            command=self.logout,
+            fg_color=self.background,
+            text_color=self.prime_text,
+            font=("Nunito", 24),
+            hover_color=self.primary_ui
+        )
+        self.logout_button.pack(side="right")
+
+        sep = ctk.CTkFrame(
+            self.social_canvas,
+            height=2,
+            fg_color="#CCCCCC",
+            corner_radius=0
+        )
+        sep.pack(fill="x", pady=(0, 10))
+
+        self.following_frame = ctk.CTkFrame(
+            self.social_canvas,
+            fg_color=self.cget("fg_color"),
+            height=0
+        )
+        self.following_frame.pack(fill="x")
+
+        self.follow_button = ctk.CTkButton(
+            self.social_canvas,
+            text="Follow",
+            command= lambda: FollowFrame(self),
+            fg_color=self.background,
+            text_color=self.prime_text,
+            font=("Nunito", 12),
+            hover_color=self.primary_ui
+        )
+        self.follow_button.pack(pady=15, anchor="center")
+
 
     def logout(self):
         self.controller.logout()
@@ -192,7 +247,7 @@ class AudioClientApp(ctk.CTk):
         success, user, token, sock = general_client.run_login_register_window()
         tk._default_root = None
         if user and success:
-            AudioClientApp(token, sock).mainloop()
+            AudioClientApp(token, sock, user).mainloop()
 
     def search_songs(self, event):
         search_term = self.search_entry.get()
@@ -464,6 +519,6 @@ if __name__ == "__main__":
     gen_sock.send(protocol.create_msg('LOGI', data))
     cmd, resp = protocol.get_msg(gen_sock)
     response, token = resp.decode().split('~')
-    app = AudioClientApp(token, gen_sock)
+    app = AudioClientApp(token, gen_sock, '1')
     app.mainloop()
     gen_sock.send(protocol.create_msg('EXIT', b''))

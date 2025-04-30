@@ -129,6 +129,25 @@ class PlaybackController:
             return songs
         print("Error", "Failed to search for song.")
 
+    def user_search_suggestions(self, query):
+        msg = protocol.create_msg("USSS", f"{self.token}~{query}".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "USSS":
+            users = data.decode().split(' ')
+            print("Success", "Search completed successfully!")
+            return users
+        print("Error", "Failed to search for song.")
+
+    def follow_user(self, user):
+        msg = protocol.create_msg("FOLW", f"{self.token}~{user}".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "FOLW":
+            if data.decode() == "OK":
+                print("Success", "User followed successfully!")
+                return
+        print("Error", "Failed to follow user.")
     def fetch_recommendations(self):
         self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
         msg, data = protocol.get_msg(self.gen_socket)

@@ -85,11 +85,11 @@ class StopifyServer:
         print('updated user profile', user_id)
         self.db.mark_segments_used(user_id, THRESHOLD)
 
-    def hybrid_search(self, songs, query, n=10, cutoff=0.6):
+    def hybrid_search(self, songs, query, n=10, cutoff=0.6, prev=[]):
         q = query.lower().strip()
 
         # first check for enough results no fuzzy
-        results = [(sid, title) for (sid, title) in songs if title.lower().startswith(q)]
+        results = [(sid, title) for (sid, title) in songs if title.lower().startswith(q) and (sid,title) not in prev]
         if len(results) >= n:
             return results[:n]
 
@@ -100,7 +100,8 @@ class StopifyServer:
             low = title.lower()
             slice_ = low[:len(q)]
             score = difflib.SequenceMatcher(None, q, slice_).ratio()
-            if score >= cutoff:
+            if score >= cutoff and (sid, title) not in prev:
+                print((sid, title), 'not in', prev)
                 prefix_fuzzy.append((sid, title))
         results.extend(prefix_fuzzy)
         return results[:n]
@@ -242,7 +243,7 @@ class StopifyServer:
         close = difflib.get_close_matches(query, [song[1].lower() for song in all_song_names], n=n, cutoff=0.6)
         matches = [(sid, title) for (sid, title) in all_song_names if title in close]
         if len(matches) < n:
-            additions = self.hybrid_search(all_song_names, query, n=n - len(matches))
+            additions = self.hybrid_search(all_song_names, query, n=n - len(matches), prev=matches)
             matches.extend(additions)
         print('matches', matches)
         songs = []
@@ -260,9 +261,43 @@ class StopifyServer:
         print('songs', songs)
         return pickle.dumps(songs)
 
+    def handle_usss(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        all_users = self.db.get_all_users()
+        query = data.split(b'~')[1].decode().lower()
+        n = 5
+        close = difflib.get_close_matches(query, [user[1].lower() for user in all_users], n=n, cutoff=0.6)
+        matches = [(sid, user) for (sid, user) in all_users if user in close]
+        if len(matches) < n:
+            additions = self.hybrid_search(all_users, query, n=n - len(matches), prev=matches)
+            matches.extend(additions)
+        users_no_id = [user[1] for user in matches]
+        s = ' '.join(users_no_id)
+        return s.encode()
+
+    def handle_folw(self, data, payload):
+        return b'NO'
+        if not data.count(b'~') == 1:
+            return b'NO'
+        _, user_id = data.split(b'~')
+        if self.db.follow_user(payload['user'], user_id.decode()):
+            return b'OK'
+        return b'NO'
+
+    def handle_unfl(self, data, payload):
+        return b'NO'
+        if not data.count(b'~') == 1:
+            return b'NO'
+        _, user_id = data.split(b'~')
+        if self.db.unfollow_user(payload['user'], user_id.decode()):
+            return b'OK'
+        return b'NO'
+
     def handle_cmd(self, payload, cmd, data):
         actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp,
-                   "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis}
+                   "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis,
+                   "USSS": self.handle_usss, "FOLW": self.handle_folw, "UNFL": self.handle_unfl}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:

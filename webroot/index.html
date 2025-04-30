@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Content Security Policy: restrict sources to self and disallow framing -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <!-- Prevent MIME-type sniffing -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <!-- Prevent clickjacking -->
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <!-- Referrer policy to avoid leaking URLs -->
+  <meta name="referrer" content="no-referrer">
+  <!-- Ensure responsive rendering -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Our App</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #E8E8FA 0%, #A8DADC 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .container {
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      max-width: 320px;
+      width: 100%;
+    }
+    .app-icon {
+      width: 96px;
+      height: 96px;
+      object-fit: contain;
+      margin-bottom: 24px;
+    }
+    .title {
+      font-size: 1.75rem;
+      margin-bottom: 16px;
+      color: #333333;
+    }
+    .download-button {
+      display: inline-block;
+      padding: 16px 32px;
+      font-size: 1.25rem;
+      background: #ffffff;
+      color: #222;
+      text-decoration: none;
+      text-align: center;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transition: transform 0.2s, background 0.3s;
+    }
+    .download-button:hover {
+      background: #A8DADC;
+      transform: translateY(-2px);
+    }
+    .download-button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Replace 'app-icon.png' with your actual icon file -->
+    <img src="icon.png" alt="App Icon" class="app-icon">
+    <div class="title">Get the App</div>
+    <!-- Use anchor with download attribute and rel for security -->
+    <a href="http://127.0.0.1/file.exe" download class="download-button" id="downloadBtn" rel="noopener noreferrer">
+      Download Now
+    </a>
+  </div>
+  <script>
+    // All scripts are same-origin per CSP
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+      // Placeholder for any client-side analytics or checks
+    });
+  </script>
+</body>
+</html>
