@@ -277,6 +277,11 @@ class AudioClient:
                 self._time_callback(self.played_time, self.total_duration)
 
         self.real_stop()
+
+        if self.played_time >= self.total_duration - 0.5:  # catch float point error
+            print('its importent'*30)
+            self.in_song = False
+
         if self.in_song:
             print('asking from', self.played_time)
             self.ask_for_song(self.song_id, self.played_time, self.token)

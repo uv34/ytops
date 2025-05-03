@@ -61,7 +61,6 @@ def get_msg(other_socket):
         if len(data) < length:
             return ("ERR1", b"Incomplete data read")
 
-        print(f'Received command: {cmd}{data}')
         return cmd, data
 
     except ValueError as e:

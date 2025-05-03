@@ -277,27 +277,41 @@ class StopifyServer:
         return s.encode()
 
     def handle_folw(self, data, payload):
-        return b'NO'
         if not data.count(b'~') == 1:
             return b'NO'
-        _, user_id = data.split(b'~')
-        if self.db.follow_user(payload['user'], user_id.decode()):
+        _, username = data.split(b'~')
+        user_id = self.db.get_id_by_username(username.decode())
+        if not user_id:
+            return b'NO'
+        if self.db.follow_user(payload['user'], user_id):
             return b'OK'
         return b'NO'
 
     def handle_unfl(self, data, payload):
-        return b'NO'
         if not data.count(b'~') == 1:
             return b'NO'
-        _, user_id = data.split(b'~')
-        if self.db.unfollow_user(payload['user'], user_id.decode()):
+        _, username = data.split(b'~')
+        user_id = self.db.get_id_by_username(username.decode())
+        if not user_id:
+            return b'NO'
+        if self.db.unfollow_user(payload['user'], user_id):
             return b'OK'
         return b'NO'
+
+    def handle_flws(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        if data.split(b'~')[1] != b'':
+            return b'NO'
+        print('user', payload['user'])
+        following = self.db.get_followings_username(payload['user'])
+        return ' '.join(following).encode()
 
     def handle_cmd(self, payload, cmd, data):
         actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp,
                    "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis,
-                   "USSS": self.handle_usss, "FOLW": self.handle_folw, "UNFL": self.handle_unfl}
+                   "USSS": self.handle_usss, "FOLW": self.handle_folw, "UNFL": self.handle_unfl,
+                   "FLWS": self.handle_flws}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:

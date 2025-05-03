@@ -9,7 +9,8 @@ from song import *
 
 class PlaybackController:
     def __init__(self, gen_sock, token, pause_disable_callback, pause_enable_callback, on_playback_callback
-                 , update_song_callback, update_cover_callback, update_slider_callback, update_playlist_callback):
+                 , update_song_callback, update_cover_callback, update_slider_callback, update_playlist_callback
+                 , add_user_callback):
         self.token = token
         self.gen_socket = gen_sock
         self.client = None
@@ -28,6 +29,7 @@ class PlaybackController:
         self.update_cover_callback = update_cover_callback
         self.update_slider_callback = update_slider_callback
         self.update_playlist_callback = update_playlist_callback
+        self.add_user_callback = add_user_callback
 
         self.total_time = 1.0
         self.downloaded_time = 0.0
@@ -57,7 +59,6 @@ class PlaybackController:
 
     def play_playlist(self, p):
         def _real_play(p):
-            self.skipped = True
             self.stop_stream()
             self._wait_for_stop()
             self.song_queue.clear()
@@ -139,6 +140,18 @@ class PlaybackController:
             return users
         print("Error", "Failed to search for song.")
 
+    def get_user_following(self):
+        msg = protocol.create_msg("FLWS", f"{self.token}~".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "FLWS":
+            users = data.decode().split(' ')
+            users = data.decode().split(' ')
+            print("users:", users)
+            print("Success", "Search completed successfully!")
+            return users
+        print("Error", "Failed to get followings")
+
     def follow_user(self, user):
         msg = protocol.create_msg("FOLW", f"{self.token}~{user}".encode())
         self.gen_socket.send(msg)
@@ -146,8 +159,20 @@ class PlaybackController:
         if cmd == "FOLW":
             if data.decode() == "OK":
                 print("Success", "User followed successfully!")
+                self.add_user_callback(user)
                 return
         print("Error", "Failed to follow user.")
+
+    def unfollow_user(self, user):
+        msg = protocol.create_msg("UNFL", f"{self.token}~{user}".encode())
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket)
+        if cmd == "UNFL":
+            if data.decode() == "OK":
+                print("Success", "User unfollowed successfully!")
+                return True
+        print("Error", "Failed to unfollow user.")
+        return False
     def fetch_recommendations(self):
         self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
         msg, data = protocol.get_msg(self.gen_socket)

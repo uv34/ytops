@@ -52,7 +52,7 @@ class FollowFrame:
             follow_button.pack(side="right")
 
     def follow(self, username):
-        self.parent.controller.follow(username)
+        self.parent.controller.follow_user(username)
         self.destroy()
 
     def place_frame(self):

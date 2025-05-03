@@ -130,8 +130,11 @@ class OggServer:
         album = self.db.get_album(song['album_id'])
         page_num = closest_index(times, asked_time)
         current_time = get_time_until_page(filepath, page_num)
-
-        if asked_time >= duration:
+        print(f"-"*50)
+        print(f"asked_time={asked_time}, duration={duration}")
+        print(f"-"*50)
+        if asked_time >= duration or times[page_num] >= duration:
+            print("Requested time out of range")
             err_msg = b"Requested time out of range"
             conn.sendall(protocol.create_msg("ERR ", err_msg))
             conn.close()
@@ -146,7 +149,7 @@ class OggServer:
                      f"{sample_rate}~{real_page}|").encode() + pickle.dumps(times) + b"|" + base64.b64encode(cover_data)
 
         conn.sendall(protocol.create_msg("PGNM", pgnm_data))
-        print(f"Sent PGNM: {total_pages} pages, {duration:.2f} sec")
+        print(f"Sent PGNM: {total_pages} pages, {duration} sec")
 
         # 6) Decide how to stream:
         # If page_num <= last_header_page_idx => no re-injection, just stream from offset=0
@@ -157,7 +160,7 @@ class OggServer:
         if page_num <= last_header_page_idx:
             print(f"Page {page_num} <= last_header_page_idx={last_header_page_idx}, streaming from 0 (no injection).")
             self.stream_from_offset(conn, song_id, 0)
-        elif page_num:
+        elif page_num < total_pages:
             # Re-inject header_data, then jump to page_num
             print(f"Page {page_num} > last_header_page_idx={last_header_page_idx}, re-injecting headers then offset.")
             # 7) Send the Vorbis headers

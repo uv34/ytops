@@ -178,7 +178,7 @@ def main():
     if success and user:
         tk._default_root = None
         print(token)
-        client_ui_3.AudioClientApp(token, sock).mainloop()
+        client_ui_3.AudioClientApp(token, sock, user).mainloop()
         if sock:
             print(sock)
             sock.send(protocol.create_msg('EXIT', b''))

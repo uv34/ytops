@@ -428,6 +428,46 @@ class DBController:
         finally:
             cursor.close()
 
+    def follow_user(self, follower_id, followed_id):
+        if follower_id == followed_id:
+            raise ValueError("You can’t follow yourself")
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "INSERT INTO social (follower, folowee, time) VALUES (%s, %s, NOW())",
+                (follower_id, followed_id),
+            )
+            self.conn.commit()
+        except mysql.connector.errors.IntegrityError as e:
+            if e.errno == 1062:
+                # already following
+                cursor.close()
+                print("Already following this user.")
+                print(f"Error occurred: {e}")
+                return False
+            else:
+                cursor.close()
+                print(f"Error occurred: {e}")
+                return False
+        finally:
+            cursor.close()
+        return True
+
+    def unfollow_user(self, follower_id, followed_id):
+        """
+        Allows one user to unfollow another.
+        """
+        if follower_id == followed_id:
+            raise ValueError("You can’t unfollow yourself")
+
+        cursor = self.conn.cursor()
+        query = "DELETE FROM social WHERE follower = %s AND folowee = %s"
+        cursor.execute(query, (follower_id, followed_id))
+        self.conn.commit()
+        deleted = cursor.rowcount
+        cursor.close()
+        return bool(deleted)
+
     def print_users(self):
         """
         Prints all users from the 'user' table in the database.
@@ -444,6 +484,49 @@ class DBController:
             print("No users found.")
         cursor.close()
 
+    def get_id_by_username(self, username):
+        """
+        Retrieves the user ID based on the username.
+        """
+        cursor = self.conn.cursor()
+        query = "SELECT id FROM `user` WHERE username = %s"
+        cursor.execute(query, (username,))
+        user_id = cursor.fetchone()
+        cursor.close()
+        return user_id[0] if user_id else None
+
+    def get_followings_username(self, user_id):
+        """
+        Retrieves the usernames of users that the given user is following.
+        """
+        cursor = self.conn.cursor()
+        query = """
+            SELECT u2.username
+            FROM `user` AS u1
+            JOIN social     AS s  ON u1.id = s.follower
+            JOIN `user`        AS u2 ON s.folowee = u2.id
+            WHERE u1.id = %s
+        """
+        cursor.execute(query, (user_id,))
+        followings = cursor.fetchall()
+        print(f"Followings for user {user_id}:", followings)
+        cursor.close()
+        return [str(f[0]) for f in followings]
+
+    def get_social_table(self):
+        """
+        Retrieves the usernames of users that the given user is following.
+        """
+        cursor = self.conn.cursor()
+        query = """
+            SELECT *
+            FROM social
+        """
+        cursor.execute(query)
+        followings = cursor.fetchall()
+        cursor.close()
+        return followings
+
     def close(self):
         self.conn.close()
 
@@ -458,6 +541,8 @@ if __name__ == '__main__':
 
     print(db.get_playlists_by_user(10))
     print(db.get_all_song_names())
+    print(db.get_followings_username(5))
+    print(db.get_social_table())
     """user_id = 10
 
     # Create a new playlist for the user.

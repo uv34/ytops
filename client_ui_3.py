@@ -33,7 +33,7 @@ class AudioClientApp(ctk.CTk):
         self.username = username
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
-                                             , self.draw_slider_callback, self.update_playlists)
+                                             , self.draw_slider_callback, self.update_playlists, self.update_when_follow)
 
         self.song_info_label = ctk.CTkLabel(self, text="song name\n author", text_color=self.prime_text, font=("Nunito", 12))
         self.song_info_label.grid(row=0, rowspan=2, column=1, columnspan=3, sticky='ew', padx=5, pady=5)
@@ -111,6 +111,8 @@ class AudioClientApp(ctk.CTk):
     def on_tab_change(self):
         if self.tab_view.get() == "queue":
             self.load_queue()
+        elif self.tab_view.get() == "social":
+            self._update_following()
 
     def _build_songs_tab(self, parent):
         self.search_frame = ctk.CTkFrame(parent,
@@ -180,10 +182,63 @@ class AudioClientApp(ctk.CTk):
         for song in self.controller.song_queue.queue:
             self._add_song_row(song)
 
+    def unfollow_user(self, event):
+        if self.controller.unfollow_user(event.widget.username):
+            if not event.widget.winfo_children():
+                to_destory = event.widget.master
+            else:
+                to_destory = event.widget
+            to_destory.pack_forget()
+            to_destory.destroy()
+
+    def profile_actions(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label='unfollow', command=lambda: self.unfollow_user(event))
+        menu.post(event.x_root, event.y_root)
+
+    def _add_user_to_following(self, user, row):
+        user_frame = tk.Frame(
+            self.following_frame,
+            padx=5, pady=5,
+            bg=self.cget("fg_color"),
+        )
+        user_frame.grid(row=row, column=0, padx=5, pady=5, sticky="ew")
+        sep = ctk.CTkFrame(
+            user_frame,
+            height=2,
+            fg_color="#CCCCCC",
+            corner_radius=0,
+            width=300
+        )
+        sep.pack(side="top", fill="x", pady=(0, 5))
+
+        user_label = tk.Label(
+            user_frame,
+            text=user,
+            bg=self.cget("fg_color"),
+            fg=self.prime_text
+        )
+        user_label.pack(side="top", anchor="w", padx=5)
+        for widget in (user_frame, user_label):
+            widget.username = user
+            widget.bind("<Button-3>", self.profile_actions)
+
+    def _update_following(self):
+        following = self.controller.get_user_following()
+        print('following', following)
+
+        for widget in self.following_frame.winfo_children():
+            widget.destroy()
+
+        for row, user in enumerate(following):
+            self._add_user_to_following(user, row)
+
+
     def _build_social_tab(self, parent):
         self.social_canvas = ctk.CTkScrollableFrame(
             parent,
-            width=354,
+            width=334,
+            height=294,
             orientation="vertical",
             fg_color=parent.cget("fg_color")
         )
@@ -212,13 +267,6 @@ class AudioClientApp(ctk.CTk):
         )
         self.logout_button.pack(side="right")
 
-        sep = ctk.CTkFrame(
-            self.social_canvas,
-            height=2,
-            fg_color="#CCCCCC",
-            corner_radius=0
-        )
-        sep.pack(fill="x", pady=(0, 10))
 
         self.following_frame = ctk.CTkFrame(
             self.social_canvas,
@@ -510,6 +558,9 @@ class AudioClientApp(ctk.CTk):
     def update_playlists(self):
         print('ui updating playlists')
         self.display_playlists_horizontaly(self.controller.playlists, self.canvas2)
+
+    def update_when_follow(self, user):
+        self._add_user_to_following(user, len(self.following_frame.winfo_children()))
 
 
 if __name__ == "__main__":
