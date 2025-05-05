@@ -4,10 +4,12 @@ import socket
 import threading
 import time
 
+import encryption
 import protocol
 from general_server import verify_token
 from mysql_helper import DBController
 from ogg_handler import *
+from encryption import CryptoManager
 
 CHUNK_SIZE = 8192
 DELAY = 0  # artificial delay
@@ -54,7 +56,7 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
+        self.db = DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
         self.stop_events = {}
 
     def start_server(self):
@@ -80,6 +82,17 @@ class OggServer:
         - Streams Ogg pages -> listens for "STOP" in a separate thread.
         - Sends "SCNF" on completion, cleans up, and closes connection.
         """
+        cryp = CryptoManager()
+        msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
+        conn.send(msg)
+        cmd, data = protocol.get_msg(conn)
+        if cmd != 'SHKY':
+            return
+        pub_b = int(base64.b64decode(data).decode())
+        shared_key = cryp.shared_secret(pub_b)
+        shared_key = cryp.hash_secret(shared_key)
+        print(shared_key, '_'*100)
+
         stop_event = self.stop_events[conn]
         # 1) Read request
 
@@ -159,7 +172,7 @@ class OggServer:
 
         if page_num <= last_header_page_idx:
             print(f"Page {page_num} <= last_header_page_idx={last_header_page_idx}, streaming from 0 (no injection).")
-            self.stream_from_offset(conn, song_id, 0)
+            self.stream_from_offset(conn, song_id, 0, shared_key)
         elif page_num < total_pages:
             # Re-inject header_data, then jump to page_num
             print(f"Page {page_num} > last_header_page_idx={last_header_page_idx}, re-injecting headers then offset.")
@@ -168,9 +181,9 @@ class OggServer:
             # 8) Then stream from page_offsets[page_num]
             offset = page_offsets[page_num]
             print(f"Streaming from offset={offset}, page={page_num}")
-            self.stream_from_offset(conn, song_id, offset)
+            self.stream_from_offset(conn, song_id, offset, shared_key)
 
-        conn.sendall(protocol.create_msg("SCNF", b"1"))
+        conn.sendall(protocol.create_msg("SCNF", b"1", shared_key))
         stop_event.set()
         stop_thread.join()
 
@@ -178,7 +191,7 @@ class OggServer:
 
         del self.stop_events[conn]
 
-    def stream_from_offset(self, conn, song_name, file_offset):
+    def stream_from_offset(self, conn, song_name, file_offset, key):
         """
         Streams Ogg pages from 'file_offset' to EOF in 8192 chunks,
         reassembling complete pages and sending them to the client.
@@ -212,7 +225,7 @@ class OggServer:
 
                     page_data = buffer[:page_size]
                     if not self.stop_events[conn].is_set():
-                        conn.sendall(protocol.create_msg("PAGE", page_data))
+                        conn.sendall(protocol.create_msg("PAGE", page_data,key))
                     buffer = buffer[page_size:]
 
                     time.sleep(DELAY)

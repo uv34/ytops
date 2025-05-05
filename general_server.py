@@ -14,6 +14,7 @@ import mysql_helper
 import protocol
 from song import Song, Playlist, PlaybackSegment
 import recommendations
+from encryption import CryptoManager
 
 SECRET_KEY = 'very‑strong‑secret-key'
 THRESHOLD = 5
@@ -49,7 +50,7 @@ class StopifyServer:
         self.client_users = {}
         self.threads = []
         self.db = mysql_helper.DBController(
-            host="192.168.1.20", user="stopify", password="stop123", database="mydb"
+            host="127.0.0.1", user="stopify", password="stop123", database="mydb"
         )
         self.recommender = recommendations.Recommender(self.db)
 
@@ -106,14 +107,14 @@ class StopifyServer:
         results.extend(prefix_fuzzy)
         return results[:n]
 
-    def send_msg(self, client_socket, cmd, data):
-        msg = protocol.create_msg(cmd, data)
+    def send_msg(self, client_socket, cmd, data, shared_key):
+        msg = protocol.create_msg(cmd, data, shared_key)
         client_socket.send(msg)
         self.log('Sent', client_socket, msg)
 
-    def recv_msg(self, client_socket):
+    def recv_msg(self, client_socket, shared_key):
         try:
-            cmd, data = protocol.get_msg(client_socket)
+            cmd, data = protocol.get_msg(client_socket, shared_key)
             self.log('Received', client_socket, f'{cmd} {data}')
             return cmd, data
         except ConnectionError as e:
@@ -319,8 +320,20 @@ class StopifyServer:
         return response
 
     def handle_client(self, client_socket, client_id, addr):
+        cryp = CryptoManager()
+        msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
+        client_socket.send(msg)
+        cmd, data = protocol.get_msg(client_socket)
+        if cmd != 'SHKY':
+            return
+        pub_b = int(base64.b64decode(data).decode())
+        shared_key = cryp.shared_secret(pub_b)
+        shared_key = cryp.hash_secret(shared_key)
+        print(shared_key, '_' * 100)
+
+
         while True:
-            cmd, data = self.recv_msg(client_socket)
+            cmd, data = self.recv_msg(client_socket, shared_key)
             if cmd == 'REGI':
                 status, response = self.handle_register(data, client_socket)
             elif cmd == 'LOGI':
@@ -328,7 +341,7 @@ class StopifyServer:
             else:
                 status, response = False, b'invalid command'
 
-            self.send_msg(client_socket, cmd, response)
+            self.send_msg(client_socket, cmd, response, shared_key)
             print("status", status)
             if status:
                 break
@@ -336,7 +349,7 @@ class StopifyServer:
         print('started main loop')
         while True:
             #  try:
-            cmd, data = self.recv_msg(client_socket)
+            cmd, data = self.recv_msg(client_socket, shared_key)
             if not self.client_users[client_socket].connected:
                 print('client disconnected')
                 break
@@ -350,7 +363,7 @@ class StopifyServer:
                 response = self.handle_cmd(payload, cmd, data)
                 print('response:', response)
                 if response is not None:
-                    msg = protocol.create_msg(cmd, response)
+                    msg = protocol.create_msg(cmd, response, shared_key)
                     client_socket.send(msg)
             """except Exception as e:
                 print(f'Error: {e}')

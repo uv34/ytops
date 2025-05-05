@@ -1,88 +1,70 @@
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
 import os
+import base64
+import hashlib
+import secrets
+from cryptography.hazmat.primitives.asymmetric import dh
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+class CryptoManager:
+    # —————————————————————————————
+    # 1) Generate or load one DH parameter set (2048-bit)
+    # —————————————————————————————
+    _P_HEX = """
+            FFFFFFFF FFFFFFFF C90FDAA2 2168C234 C4C6628B 80DC1CD1
+            29024E08 8A67CC74 020BBEA6 3B139B22 514A0879 8E3404DD
+            EF9519B3 CD3A431B 302B0A6D F25F1437 4FE1356D 6D51C245
+            E485B576 625E7EC6 F44C42E9 A637ED6B 0BFF5CB6 F406B7ED
+            EE386BFB 5A899FA5 AE9F2411 7C4B1FE6 49286651 ECE65381
+            FFFFFFFF FFFFFFFF
+        """.replace("\n", "").replace(" ", "")
+    P = int(_P_HEX, 16)
+    G = 2
 
-# Generate a random AES key (256-bit)
-def generate_key():
-    return os.urandom(32)
+    def __init__(self, needs_diffie=True):
+        # private key: random integer in [2, P−2]
+        self._priv = secrets.randbelow(self.P - 3) + 2
+        # public key: g^priv mod p
+        self.public_key = pow(self.G, self._priv, self.P)
 
+    def shared_secret(self, peer_pub: int) -> int:
+        """
+        Compute g^(priv * peer_priv) mod p.
+        """
+        if not 1 < peer_pub < self.P - 1:
+            raise ValueError("Invalid peer public key")
+        return pow(peer_pub, self._priv, self.P)
 
-# Generate a random nonce (16 bytes for AES CTR mode)
-def generate_nonce():
-    return os.urandom(16)
+    @staticmethod
+    def hash_secret(secret: int) -> bytes:
+        """
+        Hash the integer shared secret with SHA-256 to get a 32-byte key.
+        """
+        # Convert to big-endian bytes
+        length = (secret.bit_length() + 7) // 8
+        secret_bytes = secret.to_bytes(length, 'big')
+        # SHA-256 digest
+        return hashlib.sha256(secret_bytes).digest()
 
+    @staticmethod
+    def encrypt(key: bytes, plaintext: bytes) -> bytes:
+        """
+        AES-CTR encrypt. Returns base64(iv ∥ ciphertext).
+        """
+        iv = os.urandom(16)  # 128-bit nonce
+        cipher = Cipher(algorithms.AES(key), modes.CTR(iv))
+        encryptor = cipher.encryptor()
+        ct = encryptor.update(plaintext) + encryptor.finalize()
+        return base64.b64encode(iv + ct)
 
-# sender encrypts the file with her key
-def sender_encrypt(input_file, output_file, key, nonce):
-    cipher = Cipher(algorithms.AES(key), modes.CTR(nonce))
-    encryptor = cipher.encryptor()
-
-    with open(input_file, 'rb') as f:
-        plaintext = f.read()
-
-    ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-
-    with open(output_file, 'wb') as f:
-        f.write(nonce + ciphertext)
-
-
-# receiver encrypts the already encrypted file with his key
-def receiver_encrypt(input_file, output_file, key, nonce):
-    cipher = Cipher(algorithms.AES(key), modes.CTR(nonce))
-    encryptor = cipher.encryptor()
-
-    with open(input_file, 'rb') as f:
-        data = f.read()
-
-    nonce_orig = data[:16]  # Extract sender's nonce
-    ciphertext = data[16:]  # Extract sender's ciphertext
-
-    new_ciphertext = encryptor.update(ciphertext) + encryptor.finalize()
-
-    with open(output_file, 'wb') as f:
-        f.write(nonce_orig + nonce + new_ciphertext)  # Store both nonces
-
-
-# sender decrypts her encryption
-def sender_decrypt(input_file, output_file, key):
-    with open(input_file, 'rb') as f:
-        nonce1 = f.read(16)
-        nonce2 = f.read(16)
-        ciphertext = f.read()
-
-    cipher = Cipher(algorithms.AES(key), modes.CTR(nonce1))
-    decryptor = cipher.decryptor()
-    decrypted = decryptor.update(ciphertext) + decryptor.finalize()
-
-    with open(output_file, 'wb') as f:
-        f.write(nonce2 + decrypted)
-
-
-# receiver decrypts his encryption to get the original message
-def receiver_decrypt(input_file, output_file, key):
-    with open(input_file, 'rb') as f:
-        nonce = f.read(16)
-        ciphertext = f.read()
-
-    cipher = Cipher(algorithms.AES(key), modes.CTR(nonce))
-    decryptor = cipher.decryptor()
-    plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-
-    with open(output_file, 'wb') as f:
-        f.write(plaintext)
-
-
-# Example usage
-if __name__ == "__main__":
-    sender_key = generate_key()
-    receiver_key = generate_key()
-    sender_nonce = generate_nonce()
-    receiver_nonce = generate_nonce()
-
-    sender_encrypt("input.txt", "sender_encrypted.bin", sender_key, sender_nonce)
-    receiver_encrypt("sender_encrypted.bin", "receiver_encrypted.bin", receiver_key, receiver_nonce)
-    sender_decrypt("receiver_encrypted.bin", "sender_decrypted.bin", sender_key)
-    receiver_decrypt("sender_decrypted.bin", "decrypted.txt", receiver_key)
-
-    print("Three-pass encryption and decryption completed successfully.")
+    @staticmethod
+    def decrypt(key: bytes, token: bytes) -> bytes:
+        """
+        AES-CTR decrypt. Accepts base64(iv ∥ ciphertext).
+        """
+        data = base64.b64decode(token)
+        iv, ct = data[:16], data[16:]
+        cipher = Cipher(algorithms.AES(key), modes.CTR(iv))
+        decryptor = cipher.decryptor()
+        return decryptor.update(ct) + decryptor.finalize()

@@ -1,4 +1,5 @@
 import socket
+from encryption import CryptoManager
 
 COMMANDS = ['PGNM', 'RQST', 'STOP', 'SCNF', 'PAGE', 'CRPL', 'ASTP', 'USTH']
 LENGTH_HEADER = 6
@@ -7,15 +8,19 @@ CMD_HEADER = 4
 def check_cmd(cmd):
     return cmd in COMMANDS
 
-def create_msg(cmd: str, data: bytes):
+def create_msg(cmd: str, data: bytes, key=None):
     """
     Creates a message that includes:
       - LENGTH_HEADER (5 bytes, decimal string, zero-padded)
       - CMD_HEADER (4 bytes)
       - data (length bytes)
     """
-    length_str = str(len(data)).zfill(LENGTH_HEADER)
-    msg = length_str.encode() + cmd.encode() + data
+    if key:
+        part = CryptoManager.encrypt(key,cmd.encode() + data)
+    else:
+        part = cmd.encode() + data
+    length_str = str(len(part)).zfill(LENGTH_HEADER)
+    msg = length_str.encode() + part
     return msg
 
 def recv_exact(sock, num_bytes):
@@ -34,7 +39,7 @@ def recv_exact(sock, num_bytes):
         total_received += len(chunk)
     return b''.join(chunks)
 
-def get_msg(other_socket):
+def get_msg(other_socket, key=None):
     """
     Reads a message from the socket:
       1) Read 5 bytes for length.
@@ -50,17 +55,15 @@ def get_msg(other_socket):
 
         length = int(length_bytes.decode())
 
-        # 2) Read command (4 bytes)
-        cmd_bytes = recv_exact(other_socket, CMD_HEADER)
-        if len(cmd_bytes) < CMD_HEADER:
-            return ("ERR1", b"Failed to read command header")
-        cmd = cmd_bytes.decode()
-
         # 3) Read data (length bytes)
         data = recv_exact(other_socket, length)
         if len(data) < length:
             return ("ERR1", b"Incomplete data read")
 
+        if key:
+            data = CryptoManager.decrypt(key, data)
+        cmd = data[:CMD_HEADER].decode()
+        data = data[CMD_HEADER:]
         return cmd, data
 
     except ValueError as e:

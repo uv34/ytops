@@ -8,7 +8,7 @@ from pygame import sndarray
 import protocol
 import pickle
 import base64
-
+from encryption import CryptoManager
 
 def closest_index(sorted_list, target):
     """
@@ -103,6 +103,22 @@ class AudioClient:
         req_str = f"{token}~{song_id}~{t}"
         self.song_id = song_id
         self.token = token
+        cryp = CryptoManager()
+        key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
+        cmd, data = protocol.get_msg(self.sock)
+        if cmd != 'SHKY':
+            print('unexpected response, trying again')
+            self.ask_for_song(song_id, t, token)
+        pub_a = int(base64.b64decode(data).decode())
+        self.sock.send(key_msg)
+
+        shared_key = cryp.shared_secret(pub_a)
+        shared_key = cryp.hash_secret(shared_key)
+        self.key = shared_key
+        print(shared_key, '_'*100)
+
+
+
         print(f'{self.sock} is asking for {song_id} in {t}')
 
         msg = protocol.create_msg("RQST", req_str.encode())
@@ -193,7 +209,7 @@ class AudioClient:
         self.running = True
         self.in_song = True
         while True:
-            cmd, chunk = protocol.get_msg(client_socket)
+            cmd, chunk = protocol.get_msg(client_socket, self.key)
             if cmd == "SCNF":
                 print("Server confirmed stop")
                 # Signal the playback and reader threads to stop
@@ -227,9 +243,12 @@ class AudioClient:
         self.running = True
         c = 0
         while self.running:
+            print('-----------------------')
             if self.done_flag.is_set():
                 break
+            print('1')
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
+            print('2')
             if not pcm:
                 break
             if not self.done_flag.is_set():  # in case done flag is set after receiving
@@ -275,7 +294,7 @@ class AudioClient:
             self.played_time += duration_s
             if self._time_callback:
                 self._time_callback(self.played_time, self.total_duration)
-
+        print('the end')
         self.real_stop()
 
         if self.played_time >= self.total_duration - 0.5:  # catch float point error

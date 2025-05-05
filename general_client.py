@@ -5,6 +5,8 @@ import customtkinter as ctk
 from tkinter import messagebox
 import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
 import client_ui_3
+from encryption import CryptoManager
+import base64
 
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
@@ -18,6 +20,7 @@ class LoginRegisterWindow(tk.Tk):
         self.login_success = False
         self.logged_in_username = None
         self.token = '###'
+        self.key = b''
 
         self.primary_ui = "#A8DADC"
         self.secondary_accent = "#F4C2C2"
@@ -103,15 +106,26 @@ class LoginRegisterWindow(tk.Tk):
             try:
                 self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.client_socket.connect((SERVER_IP, SERVER_PORT))
+                cryp = CryptoManager()
+                key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
+                cmd, data = protocol.get_msg(self.client_socket)
+                if cmd != 'SHKY':
+                    print('unexpected response, trying again')
+                pub_a = int(base64.b64decode(data).decode())
+                self.client_socket.send(key_msg)
+
+                shared_key = cryp.shared_secret(pub_a)
+                shared_key = cryp.hash_secret(shared_key)
+                self.key = shared_key
             except Exception as e:
                 messagebox.showerror("Connection Error", f"Could not connect to server: {e}")
                 return False
         return True
 
     def send_receive(self, cmd, data):
-        msg = protocol.create_msg(cmd, data)
+        msg = protocol.create_msg(cmd, data, self.key)
         self.client_socket.send(msg)
-        response_cmd, response_data = protocol.get_msg(self.client_socket)
+        response_cmd, response_data = protocol.get_msg(self.client_socket, self.key)
         return response_cmd, response_data.decode()
 
     def login(self):
@@ -171,17 +185,17 @@ class MainWindow(tk.Tk):
 def run_login_register_window():
     app = LoginRegisterWindow()
     app.mainloop()
-    return app.login_success, app.logged_in_username, app.token, app.client_socket
+    return app.login_success, app.logged_in_username, app.token, app.client_socket, app.key
 
 def main():
-    success, user, token, sock = run_login_register_window()
+    success, user, token, sock, key = run_login_register_window()
     if success and user:
         tk._default_root = None
         print(token)
-        client_ui_3.AudioClientApp(token, sock, user).mainloop()
+        client_ui_3.AudioClientApp(token, sock, user, key).mainloop()
         if sock:
             print(sock)
-            sock.send(protocol.create_msg('EXIT', b''))
+            sock.send(protocol.create_msg('EXIT', b''), key)
 
 
 if __name__ == "__main__":

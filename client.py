@@ -10,7 +10,7 @@ from song import *
 class PlaybackController:
     def __init__(self, gen_sock, token, pause_disable_callback, pause_enable_callback, on_playback_callback
                  , update_song_callback, update_cover_callback, update_slider_callback, update_playlist_callback
-                 , add_user_callback):
+                 , add_user_callback, key):
         self.token = token
         self.gen_socket = gen_sock
         self.client = None
@@ -20,6 +20,7 @@ class PlaybackController:
         self.skipped = False
         self.playlists = []
         self.status = ""
+        self.key = key
 
         # -=+ Callbacks +=-
         self.pause_enable_callback = pause_enable_callback
@@ -54,7 +55,7 @@ class PlaybackController:
         self.stop_stream()
         self.stream_thread = None
         self.client = None
-        self.gen_socket.send(protocol.create_msg('EXIT', b''))
+        self.gen_socket.send(protocol.create_msg('EXIT', b'', self.key))
         self.gen_socket.close()
 
     def play_playlist(self, p):
@@ -78,9 +79,9 @@ class PlaybackController:
     def create_playlist(self, name, cover_file):
         with open(cover_file, "rb") as cover_file:
             coverb64 = base64.b64encode(cover_file.read())
-        msg = protocol.create_msg("CRPL", f"{self.token}~{name}~{coverb64.decode()}".encode())
+        msg = protocol.create_msg("CRPL", f"{self.token}~{name}~{coverb64.decode()}".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "CRPL":
             if data[:2].decode() == "OK":
                 print('adding playlist')
@@ -97,9 +98,9 @@ class PlaybackController:
 
     def delete_playlist(self, event):
         p_to_delete = event.widget.playlist
-        msg = protocol.create_msg("DLPL", f"{self.token}~{p_to_delete.playlist_id}".encode())
+        msg = protocol.create_msg("DLPL", f"{self.token}~{p_to_delete.playlist_id}".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "DLPL":
             if data[:2].decode() == "OK":
                 self.playlists.remove(p_to_delete)
@@ -109,9 +110,9 @@ class PlaybackController:
 
     def add_to_playlist(self, song, p_to_add):
         print('add top playlist')
-        msg = protocol.create_msg("ASTP", f"{self.token}~{p_to_add.playlist_id}~{song.song_id}".encode())
+        msg = protocol.create_msg("ASTP", f"{self.token}~{p_to_add.playlist_id}~{song.song_id}".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "ASTP":
             if data[:2].decode() == "OK":
                 p_to_add.add_song(song)
@@ -121,9 +122,9 @@ class PlaybackController:
         print("Error", "Failed to add song to playlist.")
 
     def search(self, query):
-        msg = protocol.create_msg("SSIS", f"{self.token}~{query}".encode())
+        msg = protocol.create_msg("SSIS", f"{self.token}~{query}".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "SSIS":
             songs = pickle.loads(data)
             print("Success", "Search completed successfully!")
@@ -131,9 +132,9 @@ class PlaybackController:
         print("Error", "Failed to search for song.")
 
     def user_search_suggestions(self, query):
-        msg = protocol.create_msg("USSS", f"{self.token}~{query}".encode())
+        msg = protocol.create_msg("USSS", f"{self.token}~{query}".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "USSS":
             users = data.decode().split(' ')
             print("Success", "Search completed successfully!")
@@ -141,9 +142,9 @@ class PlaybackController:
         print("Error", "Failed to search for song.")
 
     def get_user_following(self):
-        msg = protocol.create_msg("FLWS", f"{self.token}~".encode())
+        msg = protocol.create_msg("FLWS", f"{self.token}~".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "FLWS":
             users = data.decode().split(' ')
             users = data.decode().split(' ')
@@ -153,9 +154,9 @@ class PlaybackController:
         print("Error", "Failed to get followings")
 
     def follow_user(self, user):
-        msg = protocol.create_msg("FOLW", f"{self.token}~{user}".encode())
+        msg = protocol.create_msg("FOLW", f"{self.token}~{user}".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "FOLW":
             if data.decode() == "OK":
                 print("Success", "User followed successfully!")
@@ -164,9 +165,9 @@ class PlaybackController:
         print("Error", "Failed to follow user.")
 
     def unfollow_user(self, user):
-        msg = protocol.create_msg("UNFL", f"{self.token}~{user}".encode())
+        msg = protocol.create_msg("UNFL", f"{self.token}~{user}".encode(), self.key)
         self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "UNFL":
             if data.decode() == "OK":
                 print("Success", "User unfollowed successfully!")
@@ -174,8 +175,8 @@ class PlaybackController:
         print("Error", "Failed to unfollow user.")
         return False
     def fetch_recommendations(self):
-        self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~'))
-        msg, data = protocol.get_msg(self.gen_socket)
+        self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~', self.key))
+        msg, data = protocol.get_msg(self.gen_socket, self.key)
         songs, playlists = pickle.loads(data)
         print("Fetched songs")
         print(self.history_segments)
@@ -219,7 +220,7 @@ class PlaybackController:
         self.client.seek(time)
         listened_segment = PlaybackSegment(self.song_queue.current_song.song_id, self.started_playing_time
                                            , self.played_time, self.total_time)
-        msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)))
+        msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)), self.key)
         self.gen_socket.send(msg)
         self.history_segments.append(listened_segment)
         self.started_playing_time = time
@@ -266,13 +267,14 @@ class PlaybackController:
                 self.update_status(f"Error: {e}")
                 print(f"Error")
             finally:
+                print(f'skipped: {self.skipped} ')
                 if not self.skipped:
                     self.song_queue.next()
                 self.skipped = False
                 if self.song_queue.current_song:
                     listened_segment = PlaybackSegment(self.song_queue.current_song.song_id, self.started_playing_time
                                                        , self.played_time, self.total_time)
-                    msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)))
+                    msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)), self.key)
                     self.gen_socket.send(msg)
                     self.history_segments.append(listened_segment)
                     self.start_after_stop(self.song_queue.current_song.song_id)

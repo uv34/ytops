@@ -9,13 +9,14 @@ import protocol
 from client import PlaybackController
 from custom_widgets import *
 import general_client
+from encryption import CryptoManager
 
 def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
 
 
 class AudioClientApp(ctk.CTk):
-    def __init__(self, token, gen_sock, username):
+    def __init__(self, token, gen_sock, username, key):
         super().__init__()
         self.title("Muniz Player sigmaboii123")
         self.geometry("400x160")
@@ -33,7 +34,8 @@ class AudioClientApp(ctk.CTk):
         self.username = username
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
-                                             , self.draw_slider_callback, self.update_playlists, self.update_when_follow)
+                                             , self.draw_slider_callback, self.update_playlists, self.update_when_follow
+                                             , key)
 
         self.song_info_label = ctk.CTkLabel(self, text="song name\n author", text_color=self.prime_text, font=("Nunito", 12))
         self.song_info_label.grid(row=0, rowspan=2, column=1, columnspan=3, sticky='ew', padx=5, pady=5)
@@ -292,10 +294,10 @@ class AudioClientApp(ctk.CTk):
         super().destroy()
 
         # now show the login/register dialog
-        success, user, token, sock = general_client.run_login_register_window()
+        success, user, token, sock, key = general_client.run_login_register_window()
         tk._default_root = None
         if user and success:
-            AudioClientApp(token, sock, user).mainloop()
+            AudioClientApp(token, sock, user, key).mainloop()
 
     def search_songs(self, event):
         search_term = self.search_entry.get()
@@ -566,10 +568,23 @@ class AudioClientApp(ctk.CTk):
 if __name__ == "__main__":
     gen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     gen_sock.connect(("localhost", 5001))
+
+    cryp = CryptoManager()
+    key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
+    cmd, data = protocol.get_msg(gen_sock)
+    if cmd != 'SHKY':
+        print('unexpected response, trying again')
+    pub_a = int(base64.b64decode(data).decode())
+    gen_sock.send(key_msg)
+
+    shared_key = cryp.shared_secret(pub_a)
+    shared_key = cryp.hash_secret(shared_key)
+    key = shared_key
+    print(shared_key, '_' * 100)
     data = f"1~1".encode()
-    gen_sock.send(protocol.create_msg('LOGI', data))
-    cmd, resp = protocol.get_msg(gen_sock)
+    gen_sock.send(protocol.create_msg('LOGI', data, key))
+    cmd, resp = protocol.get_msg(gen_sock, key)
     response, token = resp.decode().split('~')
-    app = AudioClientApp(token, gen_sock, '1')
+    app = AudioClientApp(token, gen_sock, '1', key)
     app.mainloop()
     gen_sock.send(protocol.create_msg('EXIT', b''))
