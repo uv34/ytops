@@ -1,12 +1,15 @@
 import socket
 import threading
 import os
+import ssl
 import mimetypes
 
 HOST = '0.0.0.0'  # Listen on all interfaces
-PORT = 80       # Port to listen on
+PORT = 443       # Port to listen on
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-print('BASE_DIR:', BASE_DIR)
+
+CERT_FILE = os.path.join(BASE_DIR, 'cert.pem')
+KEY_FILE = os.path.join(BASE_DIR, 'key.pem')
 
 
 def handle_client(client_conn, client_addr):
@@ -76,20 +79,26 @@ def handle_client(client_conn, client_addr):
 
 
 def main():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.bind((HOST, PORT))
-        server_socket.listen()
-        print(f"Serving HTTP on {HOST} port {PORT} ...")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
 
-        while True:
-            client_conn, client_addr = server_socket.accept()
-            thread = threading.Thread(
-                target=handle_client,
-                args=(client_conn, client_addr),
-                daemon=True
-            )
-            thread.start()
+    # Create and bind socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as server_sock:
+        server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_sock.bind((HOST, PORT))
+        server_sock.listen(5)
+        print(f"Serving HTTPS on {HOST} port {PORT} ...")
+
+        # Wrap the socket with SSL
+        with context.wrap_socket(server_sock, server_side=True) as tls_sock:
+            while True:
+                client_conn, client_addr = tls_sock.accept()
+                thread = threading.Thread(
+                    target=handle_client,
+                    args=(client_conn, client_addr),
+                    daemon=True
+                )
+                thread.start()
 
 
 if __name__ == '__main__':

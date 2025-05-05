@@ -1,0 +1,20 @@
+[ req ]
+default_bits       = 2048
+distinguished_name = dn
+x509_extensions    = v3_req
+prompt             = no
+
+[ dn ]
+C  = IL
+ST = Israel
+L  = Pardesia
+O  = stopify
+OU = music
+CN = localhost
+
+[ v3_req ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = localhost
+IP.1  = 127.0.0.1
