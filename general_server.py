@@ -50,7 +50,7 @@ class StopifyServer:
         self.client_users = {}
         self.threads = []
         self.db = mysql_helper.DBController(
-            host="127.0.0.1", user="stopify", password="stop123", database="mydb"
+            host="192.168.1.20", user="stopify", password="stop123", database="mydb"
         )
         self.recommender = recommendations.Recommender(self.db)
 
