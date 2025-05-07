@@ -202,6 +202,7 @@ class PlaybackController:
             self.start_stream(song_id)
 
     def pause_stream(self):
+        print(self.played_time, "-----------------------------")
         if self.client:
             self.client.pause()
             new_state = "Paused" if not self.client.playing else "Resumed"
