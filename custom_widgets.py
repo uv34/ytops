@@ -8,6 +8,114 @@ import base64
 from song import *
 import io
 
+
+class SocialFrame:
+    def __init__(self, parent, social_profile):
+        self.parent = parent
+        self.profile_data = social_profile
+        self.frame_width = 300
+        self.frame_height = 360
+        self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
+
+        self.create_widgets()
+        self.place_frame()
+
+    def create_widgets(self):
+        # Username
+        uname = self.profile_data['profile'][0][0]
+        self.username_label = tk.Label(
+            self.frame, text=uname,
+            font=("Arial", 14, "bold"),
+            fg="white", bg="#1e1e1e"
+        )
+        self.username_label.place(relx=0.5, y=20, anchor="n")
+
+        # Last active time
+        last_time = self.profile_data['profile'][0][1]
+        if isinstance(last_time, datetime):
+            time_str = last_time.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            time_str = str(last_time)
+        self.time_label = tk.Label(
+            self.frame, text=f"Last active: {time_str}",
+            font=("Arial", 10),
+            fg="#cccccc", bg="#1e1e1e"
+        )
+        self.time_label.place(relx=0.5, y=45, anchor="n")
+
+        # Songs list
+        self.songs_label = tk.Label(
+            self.frame, text="Songs:",
+            font=("Arial", 11, "underline"),
+            fg="white", bg="#1e1e1e"
+        )
+        self.songs_label.place(relx=0.5, y=75, anchor="n")
+
+        self.songs_box = tk.Frame(self.frame, bg="#1e1e1e")
+        self.songs_box.place(relx=0.5, y=95, anchor="n", width=260, height=100)
+
+        self.songs_list = tk.Listbox(
+            self.songs_box,
+            bg="#2e2e2e", fg="white",
+            bd=0, highlightthickness=0,
+            selectbackground="#444444"
+        )
+        self.songs_list.pack(side="left", fill="both", expand=True)
+
+        songs_scroll = tk.Scrollbar(self.songs_box, command=self.songs_list.yview)
+        songs_scroll.pack(side="right", fill="y")
+        self.songs_list.config(yscrollcommand=songs_scroll.set)
+
+        for song in self.profile_data['songs']:
+            self.songs_list.insert("end", f"{song.name} — {song.author}")
+
+        # Playlists list
+        self.pl_label = tk.Label(
+            self.frame, text="Playlists:",
+            font=("Arial", 11, "underline"),
+            fg="white", bg="#1e1e1e"
+        )
+        self.pl_label.place(relx=0.5, y=205, anchor="n")
+
+        self.pl_box = tk.Frame(self.frame, bg="#1e1e1e")
+        self.pl_box.place(relx=0.5, y=225, anchor="n", width=260, height=100)
+
+        self.pl_list = tk.Listbox(
+            self.pl_box,
+            bg="#2e2e2e", fg="white",
+            bd=0, highlightthickness=0,
+            selectbackground="#444444"
+        )
+        self.pl_list.pack(side="left", fill="both", expand=True)
+
+        pl_scroll = tk.Scrollbar(self.pl_box, command=self.pl_list.yview)
+        pl_scroll.pack(side="right", fill="y")
+        self.pl_list.config(yscrollcommand=pl_scroll.set)
+
+        for pl in self.profile_data['playlists']:
+            print(self.profile_data['playlists'])
+            print(pl)
+            self.pl_list.insert("end", pl.name)
+
+        # Optional: Close button
+        self.close_btn = tk.Button(
+            self.frame, text="Close",
+            bg="#3e3e3e", fg="white",
+            width=12, command=self.destroy
+        )
+        self.close_btn.place(relx=0.5, y=340, anchor="n")
+
+    def place_frame(self):
+        self.parent.update_idletasks()
+        pw = self.parent.winfo_width()
+        ph = self.parent.winfo_height()
+        x = (pw - self.frame_width) // 2
+        y = (ph - self.frame_height) // 2
+        self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
+
+    def destroy(self):
+        self.frame.destroy()
+
 class FollowFrame:
     def __init__(self, parent):
         self.parent = parent

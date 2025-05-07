@@ -224,6 +224,11 @@ class AudioClientApp(ctk.CTk):
         for widget in (user_frame, user_label):
             widget.username = user
             widget.bind("<Button-3>", self.profile_actions)
+            widget.bind("<Button-1>", self._display_soc)
+
+    def _display_soc(self, event):
+        profile = self.controller.get_social_profile(event.widget.username)
+        SocialFrame(self, profile)
 
     def _update_following(self):
         following = self.controller.get_user_following()
@@ -234,7 +239,6 @@ class AudioClientApp(ctk.CTk):
 
         for row, user in enumerate(following):
             self._add_user_to_following(user, row)
-
 
     def _build_social_tab(self, parent):
         self.social_canvas = ctk.CTkScrollableFrame(

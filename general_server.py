@@ -50,7 +50,7 @@ class StopifyServer:
         self.client_users = {}
         self.threads = []
         self.db = mysql_helper.DBController(
-            host="192.168.1.20", user="stopify", password="stop123", database="mydb"
+            host="127.0.0.1", user="stopify", password="stop123", database="mydb"
         )
         self.recommender = recommendations.Recommender(self.db)
 
@@ -308,11 +308,58 @@ class StopifyServer:
         following = self.db.get_followings_username(payload['user'])
         return ' '.join(following).encode()
 
+    def handle_prfl(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        username = data.split(b'~')[1]
+        print("username of", username)
+        profile = self.db.get_social_profile(username)
+        if not profile:
+            return b'NO'
+        songs = []
+        for song in self.db.get_last_10_songs(username):
+            songs.append(self.get_song(song))
+        playlists = []
+        for playlist in self.db.get_user_playlist_by_username(username):
+            playlists.append(self.get_playlist(playlist))
+        social_profile = {"profile": profile, "songs": songs, "playlists": playlists}
+        return pickle.dumps(social_profile)
+
+    def get_playlist(self,dict):
+        pid = dict['id']
+        name = dict['name']
+        with open(f'playlists/{pid}.jpg', 'rb') as f:
+            cover = f.read()
+        coverb64 = base64.b64encode(cover)
+        d = self.db.get_songs_in_playlist(pid)
+        songs_in_p = []
+        for song in d:
+            album = self.db.get_album(song['album_id'])
+            cover_file = f'{album["id"]}.jpg'
+            with open(f'covers/{cover_file}', 'rb') as f:
+                song_cover = f.read()
+            song_coverb64 = base64.b64encode(song_cover)
+            s = Song(song['id'], song['name'], song['author'], album['name'],
+                     song_coverb64)  # mabye change to the songs real cover
+            songs_in_p.append(s)
+        playlist = Playlist(pid, name, coverb64, songs_in_p)
+        return playlist
+
+    def get_song(self, song):
+        album = self.db.get_album(song['album_id'])
+        cover_file = f'{album["id"]}.jpg'
+        with open(f'covers/{cover_file}', 'rb') as f:
+            song_cover = f.read()
+        song_coverb64 = base64.b64encode(song_cover)
+        s = Song(song['id'], song['name'], song['author'], album['name'],
+                 song_coverb64)
+        return s
+
     def handle_cmd(self, payload, cmd, data):
         actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp,
                    "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis,
                    "USSS": self.handle_usss, "FOLW": self.handle_folw, "UNFL": self.handle_unfl,
-                   "FLWS": self.handle_flws}
+                   "FLWS": self.handle_flws, "PRFL": self.handle_prfl}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:

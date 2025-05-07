@@ -148,9 +148,9 @@ class PlaybackController:
         cmd, data = protocol.get_msg(self.gen_socket, self.key)
         if cmd == "FLWS":
             users = data.decode().split(' ')
-            users = data.decode().split(' ')
             print("users:", users)
             print("Success", "Search completed successfully!")
+            users = [] if users == [''] else users
             return users
         print("Error", "Failed to get followings")
 
@@ -175,6 +175,16 @@ class PlaybackController:
                 return True
         print("Error", "Failed to unfollow user.")
         return False
+
+
+    def get_social_profile(self, username):
+        msg = protocol.create_msg("PRFL", self.token.encode() + b'~' + username.encode() , self.key)
+        self.gen_socket.send(msg)
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        social_profile = pickle.loads(data)
+        return social_profile
+
+
     def fetch_recommendations(self):
         self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~', self.key))
         msg, data = protocol.get_msg(self.gen_socket, self.key)

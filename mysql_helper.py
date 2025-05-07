@@ -422,7 +422,7 @@ class DBController:
             cursor.execute(update_query, (user_id, n))
             self.conn.commit()
             print(f"{cursor.rowcount} segments marked as used.")
-        except Error as e:
+        except Exception as e:
             print(f"Error while updating segments: {e}")
             self.conn.rollback()
         finally:
@@ -527,13 +527,62 @@ class DBController:
         cursor.close()
         return followings
 
+    def get_social_profile(self, username):
+        cursor = self.conn.cursor()
+        query = """
+                SELECT u.username, u.create_time, p.acoustic, p.dance, p.energy, 
+                p.instrument, p.live, p.speech
+                FROM user u
+                JOIN proflie p ON u.id = p.user_id
+                WHERE u.username = %s;
+                """
+        cursor.execute(query, (username,))
+        profile = cursor.fetchall()
+        cursor.close()
+        return profile
+
+    def get_last_10_songs(self, username):
+        cursor = self.conn.cursor(dictionary=True)
+        query="""
+            SELECT *
+            FROM user_segments us
+            JOIN songs s ON us.songs_id = s.id
+            JOIN user u ON us.user_id = u.id
+            WHERE us.id IN (
+                SELECT MAX(id)
+                FROM user_segments
+                WHERE user_id = u.id
+                GROUP BY songs_id
+            )
+            AND u.username = %s
+            ORDER BY us.time DESC
+            LIMIT 10;
+            """
+        cursor.execute(query, (username,))
+        songs = cursor.fetchall()
+        cursor.close()
+        return songs
+
+    def get_user_playlist_by_username(self, username):
+        cursor = self.conn.cursor(dictionary=True)
+        query = """
+                SELECT *
+                FROM playlists p
+                JOIN user u ON p.user_id = u.id
+                WHERE u.username = %s;
+                """
+        cursor.execute(query, (username,))
+        playlists = cursor.fetchall()
+        cursor.close()
+        return playlists
+
     def close(self):
         self.conn.close()
 
 
 # Example usage:
 if __name__ == '__main__':
-    db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
+    db = DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
 
     print("\nPrinting all tables:")
     db.print_tables()
@@ -543,6 +592,10 @@ if __name__ == '__main__':
     print(db.get_all_song_names())
     print(db.get_followings_username(5))
     print(db.get_social_table())
+    print(db.get_user_playlist_by_username("1"))
+    x = db.get_user_playlist_by_username("100")
+    if not x:
+        print('nigger')
     """user_id = 10
 
     # Create a new playlist for the user.
