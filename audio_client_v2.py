@@ -10,7 +10,7 @@ import protocol
 import pickle
 import base64
 from encryption import CryptoManager
-
+import time
 def closest_index(sorted_list, target):
     if not sorted_list:
         raise ValueError("The list is empty")
@@ -43,10 +43,6 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
             continue
         sound = pcm_chunk_to_sound(pcm)
         sound.set_volume(volume.value)
-        if seek_flag.is_set():
-            pygame.mixer.stop()  # Stop any currently playing sound
-            seek_flag.clear()  # Clear the seek flag
-        print('playing')
         sound.play()
         while pygame.mixer.get_busy():
             if seek_flag.is_set():
@@ -54,11 +50,11 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
                 seek_flag.clear()
                 break
             pygame.time.Clock().tick(200)
-        if not seek_flag.is_set():  # Only update time if no seek occurred
-            with played_time.get_lock():
-                print('updated time', playing.value)
-                played_time.value += duration_s
-                time_update_queue.put(("update_time", played_time.value, total_duration))
+        with played_time.get_lock():
+            played_time.value += duration_s
+            time_update_queue.put(("update_time", played_time.value, total_duration))
+
+    print('playback process done')
     pygame.mixer.quit()
 
 class AudioClient:
@@ -94,6 +90,7 @@ class AudioClient:
         self._queue_checker_running = False
         self._queue_checker_timer = None
         self.queue_lock = threading.Lock()
+        self.pause_enqueuing = multiprocessing.Event()
 
     def set_progress_callback(self, cb):
         self._progress_callback = cb
@@ -173,20 +170,21 @@ class AudioClient:
         self.time_update_queue = multiprocessing.Queue()
         self.done_flag.clear()
         self.seek_flag.clear()
+        self.pause_enqueuing.clear()
         reader_t = threading.Thread(target=self.reader_thread_func, daemon=True)
         reader_t.start()
-        playback_p = multiprocessing.Process(
+        self.playback_p = multiprocessing.Process(
             target=playback_process_func,
             args=(self.audio_queue, self.done_flag, self.playing, self.volume, self.sample_rate, self.played_time, self.time_update_queue, self.total_duration, self.seek_flag),
             daemon=True
         )
-        playback_p.start()
+        self.playback_p.start()
         self._start_queue_checker()
         self.stream_loop(self.sock)
         self.ffmpeg_process.stdin.close()
         self.ffmpeg_process.wait()
         reader_t.join()
-        playback_p.join()
+        self.playback_p.join()
         self._stop_queue_checker()
         with self.played_time.get_lock():
             if self.played_time.value >= self.total_duration - 0.5:
@@ -222,9 +220,12 @@ class AudioClient:
                 try:
                     self.ffmpeg_process.stdin.write(chunk)
                     self.ffmpeg_process.stdin.flush()
+                    print(f"wrote page number {self.current_pages} to ffmpeg")
+
                 except BrokenPipeError:
                     print('pipe error')
                     break
+        print('exited stream loop')
 
     def reader_thread_func(self):
         bytes_per_frame = 4.0
@@ -232,22 +233,24 @@ class AudioClient:
         self.running = True
         c = 0
         while self.running:
-            print('-----------------------')
             if self.done_flag.is_set():
                 break
-            print('1')
+            if not self.playing.value or self.pause_enqueuing.is_set():
+                pygame.time.Clock().tick(50)
+                print('waiting for playback')
+                continue
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
-            print('2')
             if not pcm:
                 break
-            if not self.done_flag.is_set():
-                n_frames = len(pcm) / bytes_per_frame
-                duration_s = n_frames / self.sample_rate
-                self.cache[(c, virtual_time, duration_s)] = (duration_s, pcm)
-                with self.queue_lock:
+            n_frames = len(pcm) / bytes_per_frame
+            duration_s = n_frames / self.sample_rate
+            self.cache[(c, virtual_time, duration_s)] = (duration_s, pcm)
+            with self.queue_lock:
+                if not self.pause_enqueuing.is_set():
                     self.audio_queue.put((c, duration_s, pcm))
-                c += 1
-                virtual_time += duration_s
+
+            c += 1
+            virtual_time += duration_s
         print('reader thread done')
         self.running = False
 
@@ -256,55 +259,106 @@ class AudioClient:
             self.playing.value = not self.playing.value
 
     def seek(self, seeked):
-        times = [key[1] for key in self.cache.keys()]
-        if times and max(times) >= seeked >= min(times):
-            print('seeking from cache')
+        print(f"\n=== SEEK called: target={seeked} ===")
+
+        # 1) Inspect cache times
+        cache_times = [key[1] for key in self.cache.keys()]
+        print("Available cache times:", cache_times)
+
+        # 2) Decide cache vs. server
+        if cache_times and min(cache_times) <= seeked <= max(cache_times):
+            print("-> Seeking from cache")
+
+            # Update played_time
             with self.played_time.get_lock():
                 self.played_time.value = seeked
+                print("   played_time set to:", self.played_time.value)
+
+            # Pause playback
             with self.playing.get_lock():
                 self.playing.value = False
-            self.seek_flag.set()  # Signal playback process to stop current sound
+                print("   playing paused")
+
+            self.pause_enqueuing.set()
+
+            # 3) Drain the queue
             with self.queue_lock:
                 old_queue = []
-                while True:
+                print("   Draining audio_queue…")
+                while self.audio_queue.qsize() > 0:
                     try:
                         item = self.audio_queue.get_nowait()
+                        # Only print the first element of the tuple
+                        print(f"     drained item idx: {item[0]}")
                         old_queue.append(item)
                     except queue.Empty:
-                        break
-                to_add = [t for t in self.cache if t[1] >= self.played_time.value]
+                        print(f"    Queue is empty {self.audio_queue.qsize()}")
+                print(f"   Drained {len(old_queue)} items; indexes: {[i[0] for i in old_queue]}")
+                print(f"   Queue size after draining: {self.audio_queue.qsize()}")
+
+                # 4) Figure out which cache entries to re-add
+                to_add = [key for key in self.cache.keys() if key[1] >= self.played_time.value]
+                print("   Cache keys to re-add (idx):", [key[0] for key in to_add])
+
                 if to_add:
                     to_add.sort(key=lambda x: x[0])
-                    max_c = to_add[-1][0]
-                    for t in to_add:
-                        self.audio_queue.put((t[0], t[2], self.cache[t][1]))
+                    max_idx = to_add[-1][0]
+                    print("   Max cache idx:", max_idx)
+
+                    # Re-enqueue cache items
+                    for key in to_add:
+                        print(f"     re-enqueue cache idx: {key[0]}")
+                        # same tuple structure as before
+                        self.audio_queue.put((key[0], key[2], self.cache[key][1]))
+
+                    # Re-enqueue any old items beyond the cache range
                     for item in old_queue:
-                        if item[0] > max_c:
+                        if item[0] > max_idx:
+                            print(f"     re-enqueue old_queue idx: {item[0]}")
                             self.audio_queue.put(item)
+
+                print("   Refill complete")
+            self.pause_enqueuing.clear()
+            # 5) Resume playback
             with self.playing.get_lock():
                 self.playing.value = True
+                print("   playing resumed")
+
         else:
-            print('seeking from server')
+            # Outside cache bounds: fall back to server
+            print("-> Seeking from server (outside cache range)")
             with self.played_time.get_lock():
                 self.played_time.value = seeked
+                print("   played_time set to:", self.played_time.value)
             self.stop(True)
-        print('finished seeking')
+
+            if hasattr(self, 'playback_p'):
+                self.playback_p.join(timeout=0.1)
+                if self.playback_p.is_alive():
+                    self.playback_p.terminate()
+                    self.playback_p.join()
+                    print("   playback process terminated")
+        print("=== SEEK finished ===\n")
 
     def stop(self, for_seek=False):
         print("Stopping audio stream...")
         if not for_seek:
             self.in_song = False
             self.song_id = None
+        else:
+            print("  [stop] pausing reader enqueues")
+            self.pause_enqueuing.set()
         print('for seek', for_seek)
         with self.playing.get_lock():
             self.playing.value = False
-        self.seek_flag.set()  # Signal playback process to stop current sound
         with self.queue_lock:
-            while True:
+            while self.audio_queue.qsize() > 0:
                 try:
-                    self.audio_queue.get_nowait()
+                    item = self.audio_queue.get_nowait()
+                    # Only print the first element of the tuple
+                    print(f"     drained item idx: {item[0]}")
                 except queue.Empty:
-                    break
+                    print(f"    Queue is empty {self.audio_queue.qsize()}")
         print('not playing and queue cleared')
         if not self.done_flag.is_set():
             if self.sock:

@@ -12,7 +12,7 @@ from ogg_handler import *
 from encryption import CryptoManager
 
 CHUNK_SIZE = 8192
-DELAY = 0  # artificial delay
+DELAY = 1  # artificial delay
 
 
 def closest_index(sorted_list, target):
