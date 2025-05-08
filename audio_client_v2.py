@@ -220,7 +220,6 @@ class AudioClient:
                 try:
                     self.ffmpeg_process.stdin.write(chunk)
                     self.ffmpeg_process.stdin.flush()
-                    print(f"wrote page number {self.current_pages} to ffmpeg")
 
                 except BrokenPipeError:
                     print('pipe error')
@@ -228,7 +227,7 @@ class AudioClient:
         print('exited stream loop')
 
     def reader_thread_func(self):
-        bytes_per_frame = 4.0
+        bytes_per_frame = 4
         virtual_time = self.played_time.value
         self.running = True
         c = 0
@@ -239,7 +238,14 @@ class AudioClient:
                 pygame.time.Clock().tick(50)
                 print('waiting for playback')
                 continue
-            pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
+            try:
+                pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
+            except OSError as e:
+                if e.errno == errno.EINVAL:
+                    print('dsade')
+                    break
+                else:
+                    raise
             if not pcm:
                 break
             n_frames = len(pcm) / bytes_per_frame
@@ -332,12 +338,6 @@ class AudioClient:
                 print("   played_time set to:", self.played_time.value)
             self.stop(True)
 
-            if hasattr(self, 'playback_p'):
-                self.playback_p.join(timeout=0.1)
-                if self.playback_p.is_alive():
-                    self.playback_p.terminate()
-                    self.playback_p.join()
-                    print("   playback process terminated")
         print("=== SEEK finished ===\n")
 
     def stop(self, for_seek=False):
@@ -383,6 +383,12 @@ class AudioClient:
                 self.ffmpeg_process.wait()
             except Exception as e:
                 print(f"Error terminating ffmpeg: {e}")
+        if hasattr(self, 'playback_p'):
+            self.playback_p.join(timeout=0.1)
+            if self.playback_p.is_alive():
+                self.playback_p.terminate()
+                self.playback_p.join()
+                print("   playback process terminated")
         print("Audio streaming stopped.")
 
     def _check_queue(self):
