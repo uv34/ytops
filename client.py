@@ -76,6 +76,7 @@ class PlaybackController:
         if self.stream_thread and self.stream_thread.is_alive():
             timer = threading.Timer(0.1, self._wait_for_stop)
             timer.start()
+        print('stopeeepdeed')
 
     def create_playlist(self, name, cover_file):
         with open(cover_file, "rb") as cover_file:

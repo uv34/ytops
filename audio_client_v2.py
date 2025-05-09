@@ -32,6 +32,7 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
         return sndarray.make_sound(samples)
     pygame.mixer.init(frequency=sample_rate, size=-16, channels=2)
     while True:
+        print('playback process running', done_flag.is_set(), audio_queue.qsize())
         if done_flag.is_set() and audio_queue.empty():
             break
         if not playing.value:
@@ -184,12 +185,11 @@ class AudioClient:
         self.ffmpeg_process.stdin.close()
         self.ffmpeg_process.wait()
         reader_t.join()
-        self.playback_p.join()
         self._stop_queue_checker()
         with self.played_time.get_lock():
             if self.played_time.value >= self.total_duration - 0.5:
                 self.in_song = False
-        if not self.in_song or self.played_time.value >= self.total_duration - 0.5:
+        if not self.in_song:
             self.real_stop()
         else:
             print('asking from', self.played_time.value)
@@ -238,14 +238,7 @@ class AudioClient:
                 pygame.time.Clock().tick(50)
                 print('waiting for playback')
                 continue
-            try:
-                pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
-            except OSError as e:
-                if e.errno == errno.EINVAL:
-                    print('dsade')
-                    break
-                else:
-                    raise
+            pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
             if not pcm:
                 break
             n_frames = len(pcm) / bytes_per_frame
@@ -359,7 +352,7 @@ class AudioClient:
                     print(f"     drained item idx: {item[0]}")
                 except queue.Empty:
                     print(f"    Queue is empty {self.audio_queue.qsize()}")
-        print('not playing and queue cleared')
+        print('not playing and queue cleared', self.audio_queue.qsize())
         if not self.done_flag.is_set():
             if self.sock:
                 self.sock.sendall(protocol.create_msg("STOP", b"1"))
@@ -384,11 +377,16 @@ class AudioClient:
             except Exception as e:
                 print(f"Error terminating ffmpeg: {e}")
         if hasattr(self, 'playback_p'):
+            print("Stopping playback process...")
             self.playback_p.join(timeout=0.1)
             if self.playback_p.is_alive():
                 self.playback_p.terminate()
                 self.playback_p.join()
                 print("   playback process terminated")
+            else:
+                print("   playback process finished")
+        else:
+            print("   playback process not found")
         print("Audio streaming stopped.")
 
     def _check_queue(self):

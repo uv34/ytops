@@ -177,7 +177,7 @@ class OggServer:
             # Re-inject header_data, then jump to page_num
             print(f"Page {page_num} > last_header_page_idx={last_header_page_idx}, re-injecting headers then offset.")
             # 7) Send the Vorbis headers
-            conn.sendall(protocol.create_msg("PAGE", header_data))
+            conn.sendall(protocol.create_msg("PAGE", header_data, shared_key))
             # 8) Then stream from page_offsets[page_num]
             offset = page_offsets[page_num]
             print(f"Streaming from offset={offset}, page={page_num}")
