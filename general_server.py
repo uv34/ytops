@@ -212,6 +212,8 @@ class StopifyServer:
     def handle_dlpl(self, data, payload):
         if not data.count(b'~') == 1:
             return b'NO'
+        if self.db.is_playlist_by_user(playlist_id.decode(), payload['user']):
+            return b'NO'
         _, playlist_id = data.split(b'~')
         if self.db.delete_playlist(playlist_id.decode()) and os.path.exists(f'playlists/{playlist_id.decode()}.jpg'):
             os.remove(f'playlists/{playlist_id.decode()}.jpg')
@@ -282,7 +284,7 @@ class StopifyServer:
             return b'NO'
         _, username = data.split(b'~')
         user_id = self.db.get_id_by_username(username.decode())
-        if not user_id:
+        if not user_id or user_id == payload['user']:
             return b'NO'
         if self.db.follow_user(payload['user'], user_id):
             return b'OK'
@@ -293,7 +295,7 @@ class StopifyServer:
             return b'NO'
         _, username = data.split(b'~')
         user_id = self.db.get_id_by_username(username.decode())
-        if not user_id:
+        if not user_id or user_id == payload['user']:
             return b'NO'
         if self.db.unfollow_user(payload['user'], user_id):
             return b'OK'
@@ -320,12 +322,15 @@ class StopifyServer:
         for song in self.db.get_last_10_songs(username):
             songs.append(self.get_song(song))
         playlists = []
-        for playlist in self.db.get_user_playlist_by_username(username):
+        not_goof_playlists = self.db.get_user_playlist_by_username(username)
+        print('playlists', not_goof_playlists)
+        for playlist in not_goof_playlists:
             playlists.append(self.get_playlist(playlist))
         social_profile = {"profile": profile, "songs": songs, "playlists": playlists}
         return pickle.dumps(social_profile)
 
     def get_playlist(self,dict):
+        print('getting playlist', dict)
         pid = dict['id']
         name = dict['name']
         with open(f'playlists/{pid}.jpg', 'rb') as f:
