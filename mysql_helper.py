@@ -566,7 +566,7 @@ class DBController:
     def get_user_playlist_by_username(self, username):
         cursor = self.conn.cursor(dictionary=True)
         query = """
-                SELECT *
+                SELECT p.id, p.name
                 FROM playlists p
                 JOIN user u ON p.user_id = u.id
                 WHERE u.username = %s;
@@ -576,26 +576,30 @@ class DBController:
         cursor.close()
         return playlists
 
+    def is_playlist_by_user(self, user_id, playlist_id):
+        cursor = self.conn.cursor()
+        query = "SELECT COUNT(*) FROM playlists WHERE id = %s AND user_id = %s"
+        cursor.execute(query, (playlist_id, user_id))
+        exists = cursor.fetchone()[0]
+        cursor.close()
+        return exists > 0
     def close(self):
         self.conn.close()
 
 
 # Example usage:
 if __name__ == '__main__':
-    db = DBController(host="127.0.0.1", user="stopify", password="stop123", database="mydb")
+    db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
 
     print("\nPrinting all tables:")
     db.print_tables()
     db.print_users()
 
-    print(db.get_playlists_by_user(10))
+    print(db.get_playlists_by_user(1))
     print(db.get_all_song_names())
     print(db.get_followings_username(5))
     print(db.get_social_table())
     print(db.get_user_playlist_by_username("1"))
-    x = db.get_user_playlist_by_username("100")
-    if not x:
-        print('nigger')
     """user_id = 10
 
     # Create a new playlist for the user.
