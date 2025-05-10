@@ -6,6 +6,8 @@ import socket
 import threading
 import time
 import difflib
+import secrets
+from datetime import datetime, timedelta
 
 import jwt
 from PIL import Image
@@ -15,7 +17,7 @@ import protocol
 from song import Song, Playlist, PlaybackSegment
 import recommendations
 from encryption import CryptoManager
-
+from MailManager import Mail
 SECRET_KEY = 'very‑strong‑secret-key'
 THRESHOLD = 5
 
@@ -36,10 +38,11 @@ def verify_token(token):
 
 
 class User:
-    def __init__(self, id, username, status):
+    def __init__(self, id, username, status, verified):
         self.id = id
         self.username = username
         self.status = status
+        self.verified = verified
         self.connected = True
 
 
@@ -50,7 +53,7 @@ class StopifyServer:
         self.client_users = {}
         self.threads = []
         self.db = mysql_helper.DBController(
-            host="192.168.1.20", user="stopify", password="stop123", database="mydb"
+            host="192.168.1.20", user="stopify", password="stop123", database="mydb", autocommit=True
         )
         self.recommender = recommendations.Recommender(self.db)
 
@@ -67,8 +70,8 @@ class StopifyServer:
         id, status = self.db.login_user(username, hashed_password)
         return id, status
 
-    def register_user(self, username, email, hashed_password):
-        id, status = self.db.add_user(username, hashed_password, email)
+    def register_user(self, username, email, hashed_password, token, expiry):
+        id, status = self.db.add_user(username, hashed_password, email, token, expiry)
         return id, status
 
     def _update_user_profile(self, user_id):
@@ -129,7 +132,7 @@ class StopifyServer:
         username, hashed_password = data.decode().split('~')
         id, status = self.login_user(username, hashed_password)
         if status != '0':
-            self.client_users[client_socket] = User(id, username, status)
+            self.client_users[client_socket] = User(id, username, status, self.db.is_verified(id))
             token = generate_token(id)
             print(f'token generated: {token}')
             return True, b'login successful~' + token.encode()
@@ -139,9 +142,19 @@ class StopifyServer:
         if not self.check_creds_regi(data):
             return False, b'contains invalid characters~###'
         username, email, hashed_password = data.decode().split('~')
-        id, status = self.register_user(username, email, hashed_password)
+        token = secrets.token_urlsafe(32)
+        expiry = datetime.utcnow() + timedelta(hours=24)
+        id, status = self.register_user(username, email, hashed_password, token, expiry)
         if status != '0':
-            self.client_users[client_socket] = User(id, username, status)
+            self.client_users[client_socket] = User(id, username, status, False)
+            m = Mail('Stopify - Email Verification', """Welcome to Stopify! To activate your account, please click the link below:
+            https://localhost/verify-email?token=""" + token + """
+            
+            This link expires in 24 hours. If you didn’t sign up, just ignore this message.
+            
+            Thanks,
+            The Stopify Team""", email)
+            m.send()
             token = generate_token(id)
             return True, b'login successful~' + token.encode()
         return False, b'username already exists~###'
@@ -410,13 +423,28 @@ class StopifyServer:
                 break
             token = data.split(b'~')[0]
             payload = verify_token(token)
+
             if payload:
                 data = data[1:]
-                response = self.handle_cmd(payload, cmd, data)
-                print('response:', response)
-                if response is not None:
-                    msg = protocol.create_msg(cmd, response, shared_key)
-                    client_socket.send(msg)
+                if self.client_users[client_socket].id != payload['user']:
+                    print('user id mismatch')
+                    break
+                if not self.client_users[client_socket].verified:
+                    if self.db.is_verified(payload['user']):
+                        self.client_users[client_socket].verified = True
+                if self.client_users[client_socket].verified:
+                    response = self.handle_cmd(payload, cmd, data)
+                    print('response:', response)
+                    if response is not None:
+                        msg = protocol.create_msg(cmd, response, shared_key)
+                        client_socket.send(msg)
+                else:
+                    print('user not verified')
+                    self.db.print_users()
+                    self.send_msg(client_socket, 'ERR ', b'not verified', shared_key)
+            else:
+                print('invalid token')
+                self.send_msg(client_socket, 'ERR ', b'invalid token', shared_key)
             """except Exception as e:
                 print(f'Error: {e}')
                 break"""

@@ -2,6 +2,7 @@ from operator import length_hint
 import bcrypt
 import mysql.connector
 from ogg_handler import get_ogg_duration, get_sample_rate, count_ogg_pages
+from datetime import datetime
 
 
 class DBController:
@@ -12,15 +13,15 @@ class DBController:
     im inserting the params through execute to avoid injections
     """
 
-    def __init__(self, host, user, password, database, port=3306):
+    def __init__(self, host, user, password, database, port=3306, autocommit=False):
         self.conn = mysql.connector.connect(
             host=host,
             user=user,
             password=password,
             database=database,
-            port=port
+            port=port,
+            autocommit=autocommit
         )
-        self.conn.autocommit = False
 
     def get_all_users(self):
         cursor = self.conn.cursor()
@@ -332,19 +333,25 @@ class DBController:
         else:
             return -1, '0'  # Invalid credentials
 
-    def add_user(self, username, plain_password, email):
+    def add_user(self, username, plain_password, email, verify_token, expiry):
         cursor = self.conn.cursor()
 
         # 1) Check if user already exists
         cursor.execute("SELECT COUNT(*) FROM `user` WHERE username = %s OR email = %s", (username, email))
         if cursor.fetchone()[0] > 0:
-            return -1, "ERROR: Username or email already exists."
+            return -1, '0'
         # Generate the hash (bcrypt automatically creates a salt)
         hashed_password = bcrypt.hashpw(plain_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user_status = 'r'
         # Insert the new user into the database
-        insert_query = "INSERT INTO `user` (username, email, password, create_time, status) VALUES (%s, %s, %s, NOW(), %s)"
-        cursor.execute(insert_query, (username, email, hashed_password, user_status))
+        insert_query = """
+            INSERT INTO `user`
+                (username, email, password, create_time, status,
+                 verify_token, token_expiry, is_verified)
+            VALUES
+                (%s, %s, %s, NOW(), %s, %s, %s, FALSE)
+        """
+        cursor.execute(insert_query, (username, email, hashed_password, user_status, verify_token, expiry))
         self.conn.commit()
 
         new_user_id = cursor.lastrowid
@@ -583,6 +590,47 @@ class DBController:
         exists = cursor.fetchone()[0]
         cursor.close()
         return exists > 0
+
+    def get_user_by_token(self, token):
+        cursor = self.conn.cursor(dictionary=True)
+        query = "SELECT * FROM `user` WHERE verify_token = %s"
+        cursor.execute(query, (token,))
+        user = cursor.fetchone()
+        cursor.close()
+        if not user:
+            # no such token
+            return False, None
+
+            # token_expiry should be a datetime object
+        if user.get('token_expiry') and user['token_expiry'] < datetime.utcnow():
+            # token found but expired
+            return False, user
+
+            # valid token
+        return True, user
+
+    def update_user_token(self, user_id, token, expiry):
+        cursor = self.conn.cursor()
+        query = "UPDATE `user` SET verify_token = %s, token_expiry = %s WHERE id = %s"
+        cursor.execute(query, (token, expiry, user_id))
+        self.conn.commit()
+        cursor.close()
+
+    def verify_user(self, user_id):
+        cursor = self.conn.cursor()
+        query = "UPDATE `user` SET is_verified = TRUE WHERE id = %s"
+        cursor.execute(query, (user_id,))
+        self.conn.commit()
+        cursor.close()
+
+    def is_verified(self, user_id):
+        cursor = self.conn.cursor()
+        query = "SELECT is_verified FROM `user` WHERE id = %s"
+        cursor.execute(query, (user_id,))
+        is_verified = cursor.fetchone()[0]
+        cursor.close()
+        return is_verified
+
     def close(self):
         self.conn.close()
 
