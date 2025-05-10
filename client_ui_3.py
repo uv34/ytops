@@ -227,8 +227,42 @@ class AudioClientApp(ctk.CTk):
             widget.bind("<Button-1>", self._display_soc)
 
     def _display_soc(self, event):
-        profile = self.controller.get_social_profile(event.widget.username)
-        SocialFrame(self, profile)
+        root = self.winfo_toplevel()
+
+        # 1) CTkToplevel overlay
+        overlay = ctk.CTkToplevel(root)
+        overlay.overrideredirect(True)
+        overlay.attributes('-topmost', True)
+        overlay.attributes('-alpha', 0.5)            # 50% transparent
+        overlay.configure(fg_color='black')          # CTk uses fg_color/background
+
+        # 2) keep it synced to the root’s size & position
+        def sync(e=None):
+            x, y = root.winfo_rootx(), root.winfo_rooty()
+            w, h = root.winfo_width(), root.winfo_height()
+            overlay.geometry(f"{w}x{h}+{x}+{y}")
+        sync()
+        root.bind('<Configure>', sync)  # whenever root moves/resizes
+
+        # 3) center a CTkProgressBar as an indeterminate spinner
+        spinner = ctk.CTkProgressBar(master=overlay, orientation='horizontal',
+                                     mode='indeterminate')
+        spinner.place(relx=0.5, rely=0.5, anchor='center')
+        spinner.start()
+
+        # 4) background fetch + teardown
+        def get_profile():
+            try:
+                profile = self.controller.get_social_profile(event.widget.username)
+            finally:
+                def on_done():
+                    root.unbind('<Configure>')  # remove the binding
+                    spinner.stop()
+                    overlay.destroy()
+                    SocialFrame(self, profile)
+                self.after(0, on_done)
+
+        threading.Thread(target=get_profile, daemon=True).start()
 
     def _update_following(self):
         following = self.controller.get_user_following()
@@ -571,7 +605,7 @@ class AudioClientApp(ctk.CTk):
 
 if __name__ == "__main__":
     gen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    gen_sock.connect(("localhost", 5001))
+    gen_sock.connect(("127.0.0.1", 5001))
 
     cryp = CryptoManager()
     key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
@@ -585,7 +619,7 @@ if __name__ == "__main__":
     shared_key = cryp.hash_secret(shared_key)
     key = shared_key
     print(shared_key, '_' * 100)
-    data = f"1~1".encode()
+    data = f"2~2".encode()
     gen_sock.send(protocol.create_msg('LOGI', data, key))
     cmd, resp = protocol.get_msg(gen_sock, key)
     response, token = resp.decode().split('~')
