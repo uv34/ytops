@@ -1,109 +1,25 @@
 import threading
 import tkinter as tk
 import customtkinter as ctk
-from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
 import base64
-from song import *
 import io
+from datetime import datetime
+from song import *
 
 
-class SocialFrame:
-    def __init__(self, parent, social_profile):
+class BaseFrame:
+    def __init__(self, parent, width, height, bg="#1e1e1e", bd=2, relief="solid"):
         self.parent = parent
-        self.profile_data = social_profile
-        self.frame_width = 300
-        self.frame_height = 360
-        self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
-
+        self.frame_width = width
+        self.frame_height = height
+        self.frame = tk.Frame(parent, bg=bg, bd=bd, relief=relief)
         self.create_widgets()
         self.place_frame()
 
     def create_widgets(self):
-        # Username
-        uname = self.profile_data['profile'][0][0]
-        self.username_label = tk.Label(
-            self.frame, text=uname,
-            font=("Arial", 14, "bold"),
-            fg="white", bg="#1e1e1e"
-        )
-        self.username_label.place(relx=0.5, y=20, anchor="n")
-
-        # Last active time
-        last_time = self.profile_data['profile'][0][1]
-        if isinstance(last_time, datetime):
-            time_str = last_time.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            time_str = str(last_time)
-        self.time_label = tk.Label(
-            self.frame, text=f"Last active: {time_str}",
-            font=("Arial", 10),
-            fg="#cccccc", bg="#1e1e1e"
-        )
-        self.time_label.place(relx=0.5, y=45, anchor="n")
-
-        # Songs list
-        self.songs_label = tk.Label(
-            self.frame, text="Songs:",
-            font=("Arial", 11, "underline"),
-            fg="white", bg="#1e1e1e"
-        )
-        self.songs_label.place(relx=0.5, y=75, anchor="n")
-
-        self.songs_box = tk.Frame(self.frame, bg="#1e1e1e")
-        self.songs_box.place(relx=0.5, y=95, anchor="n", width=260, height=100)
-
-        self.songs_list = tk.Listbox(
-            self.songs_box,
-            bg="#2e2e2e", fg="white",
-            bd=0, highlightthickness=0,
-            selectbackground="#444444"
-        )
-        self.songs_list.pack(side="left", fill="both", expand=True)
-
-        songs_scroll = tk.Scrollbar(self.songs_box, command=self.songs_list.yview)
-        songs_scroll.pack(side="right", fill="y")
-        self.songs_list.config(yscrollcommand=songs_scroll.set)
-
-        for song in self.profile_data['songs']:
-            self.songs_list.insert("end", f"{song.name} — {song.author}")
-
-        # Playlists list
-        self.pl_label = tk.Label(
-            self.frame, text="Playlists:",
-            font=("Arial", 11, "underline"),
-            fg="white", bg="#1e1e1e"
-        )
-        self.pl_label.place(relx=0.5, y=205, anchor="n")
-
-        self.pl_box = tk.Frame(self.frame, bg="#1e1e1e")
-        self.pl_box.place(relx=0.5, y=225, anchor="n", width=260, height=100)
-
-        self.pl_list = tk.Listbox(
-            self.pl_box,
-            bg="#2e2e2e", fg="white",
-            bd=0, highlightthickness=0,
-            selectbackground="#444444"
-        )
-        self.pl_list.pack(side="left", fill="both", expand=True)
-
-        pl_scroll = tk.Scrollbar(self.pl_box, command=self.pl_list.yview)
-        pl_scroll.pack(side="right", fill="y")
-        self.pl_list.config(yscrollcommand=pl_scroll.set)
-
-        for pl in self.profile_data['playlists']:
-            print(self.profile_data['playlists'])
-            print(pl)
-            self.pl_list.insert("end", pl.name)
-
-        # Optional: Close button
-        self.close_btn = tk.Button(
-            self.frame, text="Close",
-            bg="#3e3e3e", fg="white",
-            width=12, command=self.destroy
-        )
-        self.close_btn.place(relx=0.5, y=340, anchor="n")
+        raise NotImplementedError("Subclasses must implement create_widgets")
 
     def place_frame(self):
         self.parent.update_idletasks()
@@ -116,384 +32,277 @@ class SocialFrame:
     def destroy(self):
         self.frame.destroy()
 
-class FollowFrame:
-    def __init__(self, parent):
-        self.parent = parent
-        self.frame_width = 300
-        self.frame_height = 350
-        self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
-        self.create_widgets()
-        self.place_frame()
+
+class SocialFrame(BaseFrame):
+    def __init__(self, parent, social_profile):
+        self.profile_data = social_profile
+        super().__init__(parent, width=300, height=360)
 
     def create_widgets(self):
-        # Playlist Title Entry
+        uname = self.profile_data['profile'][0][0]
+        last_time = self.profile_data['profile'][0][1]
+        time_str = last_time.strftime("%Y-%m-%d %H:%M:%S") if isinstance(last_time, datetime) else str(last_time)
+
+        self.username_label = tk.Label(self.frame, text=uname, font=("Arial", 14, "bold"), fg="white", bg="#1e1e1e")
+        self.username_label.place(relx=0.5, y=20, anchor="n")
+        self.time_label = tk.Label(self.frame, text=f"Created: {time_str}", font=("Arial", 10), fg="#cccccc", bg="#1e1e1e")
+        self.time_label.place(relx=0.5, y=45, anchor="n")
+
+        # Songs list
+        self._create_list_section("Songs:", self.profile_data['songs'], 75, 95, 260, 100, lambda s: f"{s.name} — {s.author}")
+
+        # Playlists list
+        self._create_scrollable_labels(
+            title="Playlists:", items=self.profile_data['playlists'], y_title=205, y_box=225,
+            box_size=(260, 100), label_factory=lambda pl: pl.name,
+            on_click=lambda e, playlist: PlaylistInfoFrame(self.parent, playlist)
+        )
+
+        # Close button
+        self.close_btn = tk.Button(self.frame, text="Close", bg="#3e3e3e", fg="white", width=12, command=self.destroy)
+        self.close_btn.place(relx=0.5, y=340, anchor="n")
+
+    def _create_list_section(self, title, items, y_title, y_box, box_w, box_h, formatter):
+        tk.Label(self.frame, text=title, font=("Arial", 11, "underline"), fg="white", bg="#1e1e1e").place(relx=0.5, y=y_title, anchor="n")
+        box = tk.Frame(self.frame, bg="#1e1e1e")
+        box.place(relx=0.5, y=y_box, anchor="n", width=box_w, height=box_h)
+
+        lst = tk.Listbox(box, bg="#2e2e2e", fg="white", bd=0, highlightthickness=0, selectbackground="#444444")
+        lst.pack(side="left", fill="both", expand=True)
+        scroll = tk.Scrollbar(box, command=lst.yview)
+        scroll.pack(side="right", fill="y")
+        lst.config(yscrollcommand=scroll.set)
+
+        for item in items:
+            lst.insert("end", formatter(item))
+
+    def _create_scrollable_labels(self, title, items, y_title, y_box, box_size, label_factory, on_click):
+        tk.Label(self.frame, text=title, font=("Arial", 11, "underline"), fg="white", bg="#1e1e1e").place(relx=0.5, y=y_title, anchor="n")
+        box = tk.Frame(self.frame, bg="#1e1e1e")
+        box.place(relx=0.5, y=y_box, anchor="n", width=box_size[0], height=box_size[1])
+        scroll_frame = ctk.CTkScrollableFrame(master=box, fg_color="#2e2e2e",
+                                              scrollbar_button_color="#444444",
+                                              scrollbar_button_hover_color="#555555")
+        scroll_frame.pack(fill="both", expand=True)
+        for it in items:
+            lbl = ctk.CTkLabel(master=scroll_frame, text=label_factory(it), text_color="white",
+                                fg_color="#2e2e2e", anchor="w", height=30, corner_radius=0)
+            lbl.pack(fill="x", padx=8, pady=4)
+            lbl.bind("<Button-1>", lambda e, playlist=it: on_click(e, playlist))
+
+
+class FollowFrame(BaseFrame):
+    def __init__(self, parent):
+        super().__init__(parent, width=300, height=350)
+
+    def create_widgets(self):
         self.title_entry = ctk.CTkEntry(self.frame, font=("Arial", 12), placeholder_text="Jon Doe",
-                                    fg_color="#2e2e2e", text_color="white")
+                                        fg_color="#2e2e2e", text_color="white")
         self.title_entry.place(relx=0.5, y=100, anchor="n", relwidth=0.8)
 
-        self.suggustion_frame = ctk.CTkScrollableFrame(self.frame, fg_color="#2e2e2e", height=100)
-        self.suggustion_frame._scrollbar.configure(height=20)
-        self.suggustion_frame.place(relx=0.5, y=130, anchor="n")
-        # Button frame for Create and Cancel buttons
-        self.button_frame = tk.Frame(self.frame, bg="#1e1e1e")
-        self.button_frame.place(relx=0.5, y=250, anchor="n")
+        self.suggestion_frame = ctk.CTkScrollableFrame(self.frame, fg_color="#2e2e2e", height=100)
+        self.suggestion_frame._scrollbar.configure(height=20)
+        self.suggestion_frame.place(relx=0.5, y=130, anchor="n")
 
-        self.cancel_button = tk.Button(self.button_frame, text="Cancel", bg="#3e3e3e", fg="white", width=10, command=self.destroy)
-        self.cancel_button.pack(side="left", padx=5)
+        btn_frame = tk.Frame(self.frame, bg="#1e1e1e")
+        btn_frame.place(relx=0.5, y=250, anchor="n")
+        tk.Button(btn_frame, text="Cancel", bg="#3e3e3e", fg="white", width=10, command=self.destroy).pack(side="left", padx=5)
         self.title_entry.bind("<KeyRelease>", self.update_suggestions)
 
     def update_suggestions(self, event):
         suggestions = self.parent.controller.user_search_suggestions(self.title_entry.get())
-        print('recieved suggestions', suggestions)
-        # Clear previous suggestions
-        for widget in self.suggustion_frame.winfo_children():
-            widget.destroy()
-
-        if suggestions == [""]:
-            return
+        for w in self.suggestion_frame.winfo_children(): w.destroy()
+        if suggestions == [""]: return
         for suggestion in suggestions:
-            row = tk.Frame(self.suggustion_frame, bg="#2e2e2e")
-            row.pack(fill="x", pady=2, padx=5)
-            label = tk.Label(row, text=suggestion, bg="#2e2e2e", fg="white")
-            label.pack(side="left")
-            follow_button = ctk.CTkButton(row, text="Follow", command=lambda: self.follow(suggestion), width=10)
-            follow_button.pack(side="right")
+            row = tk.Frame(self.suggestion_frame, bg="#2e2e2e"); row.pack(fill="x", pady=2, padx=5)
+            tk.Label(row, text=suggestion, bg="#2e2e2e", fg="white").pack(side="left")
+            ctk.CTkButton(row, text="Follow", command=lambda s=suggestion: self.follow(s), width=10).pack(side="right")
 
     def follow(self, username):
         self.parent.controller.follow_user(username)
         self.destroy()
 
-    def place_frame(self):
-        # Center the frame in the parent window
-        self.parent.update_idletasks()
-        parent_width = self.parent.winfo_width()
-        parent_height = self.parent.winfo_height()
-        x = (parent_width - self.frame_width) // 2
-        y = (parent_height - self.frame_height) // 2
-        self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
 
-    def destroy(self):
-        self.frame.destroy()
-class PlaylistInfoFrame:
+class PlaylistInfoFrame(BaseFrame):
     def __init__(self, parent, playlist):
-        self.parent = parent
         self.playlist = playlist
-        self.frame_width = 300
-        self.frame_height = 350
-        self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
-        self.song_images = [] # List to hold references to song images to prevent garbage collection
-        self.create_widgets()
-        self.place_frame()
+        self.song_images = []
+        super().__init__(parent, width=300, height=350)
 
     def create_widgets(self):
-        # --- Playlist Cover Image Section ---
-        self.image_frame = tk.Frame(self.frame, bg="#1e1e1e",
-                                    highlightthickness=2, highlightbackground="#666666",
-                                    width=100, height=100)
-        self.image_frame.place(relx=0.5, y=20, anchor="n")
-        self.image_frame.pack_propagate(False)
-
-        # Decode and load the playlist cover image
+        # Cover Image
+        frame = tk.Frame(self.frame, bg="#1e1e1e", highlightthickness=2, highlightbackground="#666666",
+                         width=100, height=100)
+        frame.place(relx=0.5, y=20, anchor="n"); frame.pack_propagate(False)
         img_data = base64.b64decode(self.playlist.coverb64)
-        img = Image.open(io.BytesIO(img_data))
-        img_resized = img.resize((100, 100))
-        img_tk = ImageTk.PhotoImage(img_resized)
-        self.image_label = tk.Label(self.image_frame, image=img_tk, bg="#1e1e1e")
-        self.image_label.image = img_tk  # Keep a reference!
-        self.image_label.pack(expand=True, fill="both")
+        img = Image.open(io.BytesIO(img_data)).resize((100, 100))
+        tk_img = ImageTk.PhotoImage(img)
+        tk.Label(frame, image=tk_img, bg="#1e1e1e").pack(expand=True, fill="both"); frame.image = tk_img
 
-        # --- Playlist Title Section ---
-        self.title_label = tk.Label(self.frame, text=self.playlist.name,
-                                    bg="#1e1e1e", fg="white", font=("Arial", 12, "bold"))
-        self.title_label.place(relx=0.5, y=130, anchor="n", width=260)
+        # Title and Play
+        tk.Label(self.frame, text=self.playlist.name, bg="#1e1e1e", fg="white",
+                 font=("Arial", 12, "bold")).place(relx=0.5, y=130, anchor="n", width=260)
+        tk.Button(self.frame, text="play", bg="#3e3e3e", fg="white", width=10,
+                  command=lambda: self.parent.controller.play_playlist(self.playlist)).place(relx=0.5, y=160, anchor="n")
 
-        self.play_button = tk.Button(self.frame, text="play", bg="#3e3e3e", fg="white", width=10,
-                                       command=lambda: self.parent.controller.play_playlist(self.playlist))
-        self.play_button.place(relx=0.5, y=160, anchor="n")
+        # Songs list with scrollbar
+        canvas = tk.Canvas(self.frame, bg="#2e2e2e", highlightthickness=0)
+        canvas.place(relx=0.5, y=210, anchor="n", width=240, height=100)
+        sb = tk.Scrollbar(self.frame, orient="vertical", command=canvas.yview)
+        sb.place(relx=0.9, y=210, anchor="n", height=100)
+        canvas.configure(yscrollcommand=sb.set)
+        songs_frame = tk.Frame(canvas, bg="#2e2e2e")
+        canvas.create_window((0, 0), window=songs_frame, anchor="nw")
+        songs_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Enter>", lambda e: self._bind_mousewheel(canvas))
+        canvas.bind("<Leave>", lambda e: self._unbind_mousewheel(canvas))
+        for song in self.playlist.songs: self._add_song_row(songs_frame, song)
 
-        # --- Scrollable Songs Section ---
-        # Create a canvas to hold the songs frame and attach a scrollbar
-        self.songs_canvas = tk.Canvas(self.frame, bg="#2e2e2e", highlightthickness=0)
-        self.songs_canvas.place(relx=0.5, y=210, anchor="n", width=240, height=100)
+        tk.Button(self.frame, text="Cancel", bg="#3e3e3e", fg="white", width=10,
+                  command=self.destroy).place(relx=0.5, y=320, anchor="n")
 
-        self.songs_scrollbar = tk.Scrollbar(self.frame, orient="vertical", command=self.songs_canvas.yview)
-        # Place the scrollbar near the canvas
-        self.songs_scrollbar.place(relx=0.9, y=210, anchor="n", height=100)
-        self.songs_canvas.configure(yscrollcommand=self.songs_scrollbar.set)
+    def _add_song_row(self, parent, song):
+        row = tk.Frame(parent, bg="#2e2e2e"); row.pack(fill="x", pady=2)
+        try: img = Image.open(io.BytesIO(base64.b64decode(song.coverb64)))
+        except: img = Image.new("RGB", (40, 40), color="gray")
+        img.thumbnail((40, 40)); img_tk = ImageTk.PhotoImage(img); self.song_images.append(img_tk)
+        tk.Label(row, image=img_tk, bg="#2e2e2e").pack(side="left", padx=5)
+        tk.Label(row, text=f"{song.name} - {song.author}", bg="#2e2e2e", fg="white", anchor="w").pack(side="left", fill="x", expand=True)
 
-        # Create a frame inside the canvas to hold the song rows
-        self.songs_frame = tk.Frame(self.songs_canvas, bg="#2e2e2e")
-        self.songs_canvas.create_window((0, 0), window=self.songs_frame, anchor="nw")
+    def _bind_mousewheel(self, canvas):
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 if e.delta>0 else 1, "units"))
+        canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+        canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
 
-        # Bind the configure event to update the scrollregion
-        self.songs_frame.bind("<Configure>",
-                              lambda e: self.songs_canvas.configure(scrollregion=self.songs_canvas.bbox("all")))
+    def _unbind_mousewheel(self, canvas):
+        canvas.unbind_all("<MouseWheel>")
+        canvas.unbind_all("<Button-4>")
+        canvas.unbind_all("<Button-5>")
 
-        # Bind mousewheel events for scrolling
-        self.songs_canvas.bind("<Enter>", lambda e: self.bind_mousewheel())
-        self.songs_canvas.bind("<Leave>", lambda e: self.unbind_mousewheel())
 
-        # Populate the songs frame with a row for each song
-        for song in self.playlist.songs:
-            self.add_song_row(song)
-
-        # --- Cancel Button Section ---
-        self.cancel_button = tk.Button(self.frame, text="Cancel", bg="#3e3e3e", fg="white", width=10,
-                                       command=self.destroy)
-        self.cancel_button.place(relx=0.5, y=320, anchor="n")
-
-    def add_song_row(self, song):
-        # Container frame for a single song
-        row = tk.Frame(self.songs_frame, bg="#2e2e2e")
-        row.pack(fill="x", pady=2)
-
-        # Decode and load the song cover image
-        try:
-            img_data = base64.b64decode(song.coverb64)
-            song_img = Image.open(io.BytesIO(img_data))
-        except Exception:
-            # Fallback: Create a blank image if there's an error
-            song_img = Image.new("RGB", (40, 40), color="gray")
-        song_img.thumbnail((40, 40))
-        song_img_tk = ImageTk.PhotoImage(song_img)
-        # Save image reference to avoid garbage collection
-        self.song_images.append(song_img_tk)
-
-        # Image label for song cover
-        img_label = tk.Label(row, image=song_img_tk, bg="#2e2e2e")
-        img_label.pack(side="left", padx=5)
-
-        # Text label for song name and author
-        song_text = f"{song.name} - {song.author}"
-        text_label = tk.Label(row, text=song_text, bg="#2e2e2e", fg="white", anchor="w")
-        text_label.pack(side="left", fill="x", expand=True)
-
-    def bind_mousewheel(self):
-        # Bind mousewheel events when the mouse enters the canvas
-        self.songs_canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # For Windows and MacOS
-        self.songs_canvas.bind_all("<Button-4>", self._on_mousewheel)  # For Linux, scroll up
-        self.songs_canvas.bind_all("<Button-5>", self._on_mousewheel)  # For Linux, scroll down
-
-    def unbind_mousewheel(self):
-        # Unbind mousewheel events when the mouse leaves the canvas
-        self.songs_canvas.unbind_all("<MouseWheel>")
-        self.songs_canvas.unbind_all("<Button-4>")
-        self.songs_canvas.unbind_all("<Button-5>")
-
-    def _on_mousewheel(self, event):
-        # Mouse wheel event handler for scrolling the canvas.
-        if event.num == 4 or event.delta > 0:
-            self.songs_canvas.yview_scroll(-1, "units")
-        elif event.num == 5 or event.delta < 0:
-            self.songs_canvas.yview_scroll(1, "units")
-
-    def place_frame(self):
-        # Center the frame in the parent window
-        self.parent.update_idletasks()
-        parent_width = self.parent.winfo_width()
-        parent_height = self.parent.winfo_height()
-        x = (parent_width - self.frame_width) // 2
-        y = (parent_height - self.frame_height) // 2
-        self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
-
-    def destroy(self):
-        self.frame.destroy()
-
-class PlaylistFrame:
+class PlaylistFrame(BaseFrame):
     def __init__(self, parent):
-        self.parent = parent
-        self.frame_width = 300
-        self.frame_height = 350
-        self.frame = tk.Frame(parent, bg="#1e1e1e", bd=2, relief="solid")
         self.filepath = None
-        self.create_widgets()
-        self.place_frame()
+        super().__init__(parent, width=300, height=350)
 
     def create_widgets(self):
-        # Image placeholder: a frame with #666666 border containing a plus button
-        self.image_frame = tk.Frame(self.frame, bg="#1e1e1e",
-                                    highlightthickness=2, highlightbackground="#666666",
-                                    width=100, height=100)
-        self.image_frame.place(relx=0.5, y=20, anchor="n")
-        self.image_frame.pack_propagate(False)  # Prevent frame from resizing to its content
+        frame = tk.Frame(self.frame, bg="#1e1e1e", highlightthickness=2, highlightbackground="#666666",
+                         width=100, height=100)
+        frame.place(relx=0.5, y=20, anchor="n"); frame.pack_propagate(False)
+        self.image_btn = tk.Button(frame, text="+", font=("Arial", 24), fg="#666666", bg="#1e1e1e",
+                                   borderwidth=0, command=self.upload_image)
+        self.image_btn.pack(expand=True, fill="both")
 
-        self.image_label = tk.Button(self.image_frame, text="+", font=("Arial", 24),
-                                     fg="#666666", bg="#1e1e1e", borderwidth=0, command=self.upload_image)
-        self.image_label.pack(expand=True, fill="both")
-
-        # Playlist Title Entry
-        self.title_entry = tk.Entry(self.frame, font=("Arial", 12),
-                                    bg="#2e2e2e", fg="white", insertbackground="white")
+        self.title_entry = tk.Entry(self.frame, font=("Arial", 12), bg="#2e2e2e", fg="white",
+                                    insertbackground="white")
         self.title_entry.insert(0, "Playlist Title")
         self.title_entry.place(relx=0.5, y=200, anchor="n", relwidth=0.8)
 
-        # Button frame for Create and Cancel buttons
-        self.button_frame = tk.Frame(self.frame, bg="#1e1e1e")
-        self.button_frame.place(relx=0.5, y=250, anchor="n")
+        btn_frame = tk.Frame(self.frame, bg="#1e1e1e")
+        btn_frame.place(relx=0.5, y=250, anchor="n")
+        tk.Button(btn_frame, text="Create", bg="#666666", fg="white", width=10,
+                  command=self.create).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Cancel", bg="#3e3e3e", fg="white", width=10,
+                  command=self.destroy).pack(side="left", padx=5)
 
-        self.create_button = tk.Button(self.button_frame, text="Create", bg="#666666", fg="white", width=10, command=self.create)
-        self.create_button.pack(side="left", padx=5)
-
-        self.cancel_button = tk.Button(self.button_frame, text="Cancel", bg="#3e3e3e", fg="white", width=10, command=self.destroy)
-        self.cancel_button.pack(side="left", padx=5)
+    def upload_image(self):
+        def task():
+            path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg")])
+            if path:
+                img = Image.open(path).resize((100, 100))
+                tk_img = ImageTk.PhotoImage(img)
+                self.image_btn.config(image=tk_img); self.image_btn.image = tk_img
+                self.filepath = path
+        threading.Thread(target=task, daemon=True).start()
 
     def create(self):
-        if self.filepath and len(self.title_entry.get()) > 1:
+        if self.filepath and len(self.title_entry.get())>1:
             self.parent.controller.create_playlist(self.title_entry.get(), self.filepath)
             self.destroy()
 
-    def place_frame(self):
-        # Update parent window info and center the frame
-        self.parent.update_idletasks()
-        parent_width = self.parent.winfo_width()
-        parent_height = self.parent.winfo_height()
-        x = (parent_width - self.frame_width) // 2
-        y = (parent_height - self.frame_height) // 2
-        self.frame.place(x=x, y=y, width=self.frame_width, height=self.frame_height)
 
-    def upload_image(self):
-        def _upload_image():
-            self.filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg")])
-            if self.filepath:
-                img = Image.open(self.filepath)
-                img_resized = img.resize((100, 100))
-                img_tk = ImageTk.PhotoImage(img_resized)
-                self.image_label.config(image=img_tk)
-                self.image_label.image = img_tk  # Keep a reference
-
-        t = threading.Thread(target=_upload_image)
-        t.start()
-
-
-    def destroy(self):
-        self.frame.destroy()
-
-
-class SongOptionsPopup:
-    def __init__(self, parent_widget, audio_app):
-        self.widget = parent_widget
-        self.popup = None
-        self.app = audio_app
-
-    def show(self):
-        if self.popup:
-            return  # Already showing
-
-        x = self.widget.winfo_rootx() + 25
-        y = self.widget.winfo_rooty() + 20
-
-        self.popup = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
-        tw.configure(bg="#aaaaaa")
-
-        # Close popup when focus is lost
-        tw.bind("<FocusOut>", lambda e: self.hide())
-        # Create volume button inside popup
-        volume_button = tk.Button(tw, text="Volume", command=self.show_volume_popup)
-        volume_button.pack(padx=10, pady=10)
-
-    def show_volume_popup(self):
-        if self.popup:
-            self.popup.hide()
-            VolumePopup(self.widget, self.app).show()
-
-    def hide(self):
-        if self.popup:
-            self.popup.destroy()
-            self.popup = None
-
-class VolumePopup:
-    def __init__(self, parent_widget, audio_app):
-        self.widget = parent_widget
-        self.popup = None
-        self.app = audio_app
-
-    def show(self):
-        if self.popup:
-            return  # Already showing
-
-        x = self.widget.winfo_rootx() + 25
-        y = self.widget.winfo_rooty() + 20
-
-        self.popup = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
-        tw.configure(bg="#aaaaaa")
-
-        # Close popup when focus is lost
-        tw.bind("<FocusOut>", lambda e: self.hide())
-        # Create volume slider inside popup
-        slider = tk.Scale(
-            tw,
-            from_=0,
-            to=100,
-            orient="horizontal",
-            command=self.set_volume
-        )
-        slider.set(self.app.controller.volume * 100)  # Set initial value
-        slider.pack(padx=10, pady=10)
-
-        tw.focus_set()  # Grab focus to auto-close when clicking outside
-
-    def set_volume(self, val):
-        volume = float(val)/100
-        self.app.controller.volume = volume
-        if self.app.controller.client:
-            print('volume', volume)
-            self.app.controller.client.set_volume(volume)
-
-    def hide(self):
-        if self.popup:
-            self.popup.destroy()
-            self.popup = None
-
-
-class ToolTip:
-    def __init__(self, widget, text):
+class BasePopup:
+    def __init__(self, widget, app=None):
         self.widget = widget
-        self.text = text
-        self.tip_window = None
-        # Bindings
-        self.widget.bind("<Enter>", self.show_tip)
-        self.widget.bind("<Leave>", self.hide_tip)
+        self.app = app
+        self.popup = None
 
-    def show_tip(self, event=None):
-        # Avoid showing if the tip window already exists or if there is no text
-        if self.tip_window or not self.text:
-            return
-        # Calculate the position of the tooltip
-        x, y, cx, cy = self.widget.bbox("insert") if self.widget.bbox("insert") else (0, 0, 0, 0)
+    def show(self):
+        if self.popup: return
+        x = self.widget.winfo_rootx() + 25
+        y = self.widget.winfo_rooty() + 20
+        self.popup = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        tw.configure(bg="#aaaaaa")
+        tw.bind("<FocusOut>", lambda e: self.hide())
+        self.create_content()
+
+    def hide(self):
+        if self.popup:
+            self.popup.destroy()
+            self.popup = None
+
+    def create_content(self):
+        raise NotImplementedError("Subclasses must implement create_content")
+
+
+class SongOptionsPopup(BasePopup):
+    def create_content(self):
+        tk.Button(self.popup, text="Volume", command=self._show_volume).pack(padx=10, pady=10)
+
+    def _show_volume(self):
+        self.hide()
+        VolumePopup(self.widget, self.app).show()
+
+
+class VolumePopup(BasePopup):
+    def create_content(self):
+        slider = tk.Scale(self.popup, from_=0, to=100, orient="horizontal", command=self._set_volume)
+        slider.set(self.app.controller.volume * 100)
+        slider.pack(padx=10, pady=10)
+        self.popup.focus_set()
+
+    def _set_volume(self, val):
+        vol = float(val)/100
+        self.app.controller.volume = vol
+        if self.app.controller.client:
+            self.app.controller.client.set_volume(vol)
+
+
+class ToolTip(BasePopup):
+    def __init__(self, widget, text):
+        super().__init__(widget)
+        self.text = text
+
+    def show(self, event=None):
+        if self.popup or not self.text: return
+        x, y, _, _ = self.widget.bbox("insert") if self.widget.bbox("insert") else (0,0,0,0)
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 20
+        super().show()
 
-        # Create a top-level window to act as the tooltip
-        self.tip_window = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)  # Remove window decorations
-        tw.wm_geometry(f"+{x}+{y}")
+    def create_content(self):
+        tk.Label(self.popup, text=self.text, justify=tk.LEFT,
+                 background="#aaaaaa", relief=tk.SOLID, borderwidth=1,
+                 font=("tahoma", "8", "normal")).pack(ipadx=1)
 
-        label = tk.Label(tw, text=self.text, justify=tk.LEFT,
-                         background="#aaaaaa", relief=tk.SOLID, borderwidth=1,
-                         font=("tahoma", "8", "normal"))
-        label.pack(ipadx=1)
+    def __post_init__(self):
+        self.widget.bind("<Enter>", lambda e: self.show())
+        self.widget.bind("<Leave>", lambda e: self.hide())
 
-    def hide_tip(self, event=None):
-        # Destroy the tooltip window if it exists
-        if self.tip_window:
-            self.tip_window.destroy()
-            self.tip_window = None
 
+# Example usage remains the same
 if __name__ == '__main__':
     root = tk.Tk()
     root.title("Playlist Info")
     root.geometry("400x400")
+    import base64
     with open('playlists/1.jpg', 'rb') as f:
         cover64b = base64.b64encode(f.read())
-
     song1 = Song(1, "Imagine", "John LeBron", "Imagine", cover64b)
     song2 = Song(2, "Let It Be", "The Beatles", "Let It Be", cover64b)
     song3 = Song(3, "Bohemian Rhapsody", "King", "A Night at the Opera", cover64b)
-
     playlist = Playlist(1, "My Playlist",  cover64b, [song1, song2, song3])
-    playlist_frame = PlaylistInfoFrame(root, playlist)
+    PlaylistInfoFrame(root, playlist)
     root.mainloop()
