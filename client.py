@@ -21,6 +21,7 @@ class PlaybackController:
         self.playlists = []
         self.status = ""
         self.key = key
+        self._send_lock = threading.Lock()
 
         # -=+ Callbacks +=-
         self.pause_enable_callback = pause_enable_callback
@@ -51,6 +52,13 @@ class PlaybackController:
 
     #  -=- functionality -=-
 
+    def send_recv(self, cmd: str, msg: str):
+        with self._send_lock:
+            msg = protocol.create_msg(cmd, f"{self.token}~{msg}".encode(), self.key)
+            self.gen_socket.send(msg)
+            cmd, data = protocol.get_msg(self.gen_socket, self.key)
+            return cmd, data
+
     def logout(self):
         self.stop_stream()
         self.stream_thread = None
@@ -76,14 +84,11 @@ class PlaybackController:
         if self.stream_thread and self.stream_thread.is_alive():
             timer = threading.Timer(0.1, self._wait_for_stop)
             timer.start()
-        print('stopeeepdeed')
 
     def create_playlist(self, name, cover_file):
         with open(cover_file, "rb") as cover_file:
             coverb64 = base64.b64encode(cover_file.read())
-        msg = protocol.create_msg("CRPL", f"{self.token}~{name}~{coverb64.decode()}".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("CRPL", f"{name}~{coverb64.decode()}")
         if cmd == "CRPL":
             if data[:2].decode() == "OK":
                 print('adding playlist')
@@ -100,9 +105,7 @@ class PlaybackController:
 
     def delete_playlist(self, event):
         p_to_delete = event.widget.playlist
-        msg = protocol.create_msg("DLPL", f"{self.token}~{p_to_delete.playlist_id}".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("DLPL", f"{p_to_delete.playlist_id}")
         if cmd == "DLPL":
             if data[:2].decode() == "OK":
                 self.playlists.remove(p_to_delete)
@@ -112,9 +115,7 @@ class PlaybackController:
 
     def add_to_playlist(self, song, p_to_add):
         print('add top playlist')
-        msg = protocol.create_msg("ASTP", f"{self.token}~{p_to_add.playlist_id}~{song.song_id}".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("ASTP", f"{p_to_add.playlist_id}~{song.song_id}")
         if cmd == "ASTP":
             if data[:2].decode() == "OK":
                 p_to_add.add_song(song)
@@ -124,9 +125,7 @@ class PlaybackController:
         print("Error", "Failed to add song to playlist.")
 
     def search(self, query):
-        msg = protocol.create_msg("SSIS", f"{self.token}~{query}".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("SSIS", query)
         if cmd == "SSIS":
             songs = pickle.loads(data)
             print("Success", "Search completed successfully!")
@@ -134,9 +133,7 @@ class PlaybackController:
         print("Error", "Failed to search for song.")
 
     def user_search_suggestions(self, query):
-        msg = protocol.create_msg("USSS", f"{self.token}~{query}".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("USSS", query)
         if cmd == "USSS":
             users = data.decode().split(' ')
             print("Success", "Search completed successfully!")
@@ -144,9 +141,7 @@ class PlaybackController:
         print("Error", "Failed to search for song.")
 
     def get_user_following(self):
-        msg = protocol.create_msg("FLWS", f"{self.token}~".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("FLWS", "")
         if cmd == "FLWS":
             users = data.decode().split(' ')
             print("users:", users)
@@ -154,11 +149,10 @@ class PlaybackController:
             users = [] if users == [''] else users
             return users
         print("Error", "Failed to get followings")
+        return []
 
     def follow_user(self, user):
-        msg = protocol.create_msg("FOLW", f"{self.token}~{user}".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("FOLW", user)
         if cmd == "FOLW":
             if data.decode() == "OK":
                 print("Success", "User followed successfully!")
@@ -167,9 +161,7 @@ class PlaybackController:
         print("Error", "Failed to follow user.")
 
     def unfollow_user(self, user):
-        msg = protocol.create_msg("UNFL", f"{self.token}~{user}".encode(), self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        cmd, data = self.send_recv("UNFL", user)
         if cmd == "UNFL":
             if data.decode() == "OK":
                 print("Success", "User unfollowed successfully!")
@@ -177,22 +169,22 @@ class PlaybackController:
         print("Error", "Failed to unfollow user.")
         return False
 
-
     def get_social_profile(self, username):
-        msg = protocol.create_msg("PRFL", self.token.encode() + b'~' + username.encode() , self.key)
-        self.gen_socket.send(msg)
-        cmd, data = protocol.get_msg(self.gen_socket, self.key)
-        social_profile = pickle.loads(data)
-        return social_profile
+        cmd, data = self.send_recv("PRFL", username)
+        if cmd == "PRFL":
+            social_profile = pickle.loads(data)
+            return social_profile
+        return {}
 
 
     def fetch_recommendations(self):
-        self.gen_socket.send(protocol.create_msg("RECM", self.token.encode() + b'~', self.key))
-        msg, data = protocol.get_msg(self.gen_socket, self.key)
-        songs, playlists = pickle.loads(data)
-        print("Fetched songs")
-        print(self.history_segments)
-        return songs, playlists
+        cmd, data = self.send_recv("RECM", "")
+        if cmd == "RECM":
+            songs, playlists = pickle.loads(data)
+            print("Fetched songs")
+            print(self.history_segments)
+            return songs, playlists
+        return [], []
 
     #  -=- streaming -=-
     def start_after_stop(self, song_id):
