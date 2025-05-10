@@ -5,6 +5,9 @@ import ssl
 import mimetypes
 from urllib.parse import urlparse, parse_qs
 import mysql_helper
+from datetime import datetime, timedelta
+import secrets
+from MailManager import Mail
 
 HOST = '0.0.0.0'  # Listen on all interfaces
 PORT = 443       # Port to listen on
@@ -89,7 +92,7 @@ def handle_client(client_conn, client_addr):
         if path == '/':
             path = 'webroot/index.html'
         print(f"Serving {path} to {client_addr}")
-        if path.startswith('/verify-user'):
+        if path.startswith('/verify-email'):
             token = parse_query(path)['token'][0]
             print('token', token)
 
@@ -102,14 +105,14 @@ def handle_client(client_conn, client_addr):
                 # Send a new verification email
                 token = secrets.token_urlsafe(32)
                 expiry = datetime.utcnow() + timedelta(hours=24)
-                db.update_user_token(user.id, token, expiry)
+                db.update_user_token(user['id'], token, expiry)
                 m = Mail('Stopify - Email Verification', """Welcome to Stopify! To activate your account, please click the link below:
                             https://localhost/verify-email?token=""" + token + """
 
                             This link expires in 24 hours. If you didn’t sign up, just ignore this message.
 
                             Thanks,
-                            The Stopify Team""", email)
+                            The Stopify Team""", user['email'])
                 m.send()
             else:
                 db.verify_user(user['id'])

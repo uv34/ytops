@@ -143,7 +143,7 @@ class StopifyServer:
             return False, b'contains invalid characters~###'
         username, email, hashed_password = data.decode().split('~')
         token = secrets.token_urlsafe(32)
-        expiry = datetime.utcnow() + timedelta(hours=24)
+        expiry = datetime.utcnow() + timedelta(days=1)
         id, status = self.register_user(username, email, hashed_password, token, expiry)
         if status != '0':
             self.client_users[client_socket] = User(id, username, status, False)

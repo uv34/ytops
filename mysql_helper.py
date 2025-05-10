@@ -648,6 +648,7 @@ if __name__ == '__main__':
     print(db.get_followings_username(5))
     print(db.get_social_table())
     print(db.get_user_playlist_by_username("1"))
+    db.verify_user(3)
     """user_id = 10
 
     # Create a new playlist for the user.
