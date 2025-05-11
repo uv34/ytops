@@ -3,6 +3,7 @@ import pickle
 import socket
 import threading
 import time
+import ssl
 
 import encryption
 import protocol
@@ -12,7 +13,7 @@ from ogg_handler import *
 from encryption import CryptoManager
 
 CHUNK_SIZE = 8192
-DELAY = 1  # artificial delay
+DELAY = 0.1  # artificial delay
 
 
 def closest_index(sorted_list, target):
@@ -63,15 +64,20 @@ class OggServer:
         """
         initialize the server
         """
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile='webroot/cert.pem',
+                                keyfile='webroot/key.pem')
+
         serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         serv_sock.bind((self.host, self.port))
         serv_sock.listen()
         print(f"Server listening on {self.host}:{self.port}...")
         while True:
             conn, addr = serv_sock.accept()
+            ssl_conn = context.wrap_socket(conn, server_side=True, do_handshake_on_connect=True)
             print(f"Connection from {addr}")
-            self.stop_events[conn] = threading.Event()
-            threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
+            self.stop_events[ssl_conn] = threading.Event()
+            threading.Thread(target=self.handle_client, args=(ssl_conn,), daemon=True).start()
 
     def handle_client(self, conn):
         """

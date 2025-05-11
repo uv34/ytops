@@ -11,6 +11,8 @@ import pickle
 import base64
 from encryption import CryptoManager
 import time
+import ssl
+
 def closest_index(sorted_list, target):
     if not sorted_list:
         raise ValueError("The list is empty")
@@ -32,7 +34,6 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
         return sndarray.make_sound(samples)
     pygame.mixer.init(frequency=sample_rate, size=-16, channels=2)
     while True:
-        print('playback process running', done_flag.is_set(), audio_queue.qsize())
         if done_flag.is_set() and audio_queue.empty():
             break
         if not playing.value:
@@ -104,8 +105,10 @@ class AudioClient:
             self.volume.value = volume
 
     def ask_for_song(self, song_id: str, t: float, token: str):
+        client_ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
+        self.sock = client_ctx.wrap_socket(self.sock, server_hostname=self.host)
         print('connected')
         req_str = f"{token}~{song_id}~{t}"
         self.song_id = song_id
@@ -234,9 +237,8 @@ class AudioClient:
         while self.running:
             if self.done_flag.is_set():
                 break
-            if not self.playing.value or self.pause_enqueuing.is_set():
+            if self.pause_enqueuing.is_set():
                 pygame.time.Clock().tick(50)
-                print('waiting for playback')
                 continue
             pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
             if not pcm:

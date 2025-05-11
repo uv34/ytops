@@ -179,25 +179,40 @@ class DBController:
 
     def remove_song_from_playlist(self, song_id, playlist_id):
         cursor = self.conn.cursor()
-        # Remove the song from the playlist
-        delete_query = "DELETE FROM songs_has_playlists WHERE songs_id = %s AND playlists_id = %s"
+        # Attempt to delete the song
+        delete_query = """
+            DELETE FROM songs_has_playlists 
+             WHERE songs_id = %s AND playlists_id = %s
+        """
         cursor.execute(delete_query, (song_id, playlist_id))
 
-        # Optionally, re-index the remaining songs to fill the gap
-        # Retrieve all songs for the playlist ordered by current index
-        select_query = ("SELECT songs_id FROM songs_has_playlists "
-                        "WHERE playlists_id = %s ORDER BY `index` ASC")
+        # If no rows were removed -> nothing deleted
+        if cursor.rowcount == 0:
+            cursor.close()
+            return False
+
+        # Otherwise re-index the remaining songs
+        select_query = """
+            SELECT songs_id 
+              FROM songs_has_playlists
+             WHERE playlists_id = %s
+          ORDER BY `index` ASC
+        """
         cursor.execute(select_query, (playlist_id,))
         songs = cursor.fetchall()
 
-        # Reassign indices starting from 1
         for new_index, (s_id,) in enumerate(songs, start=1):
-            update_query = ("UPDATE songs_has_playlists SET `index` = %s "
-                            "WHERE playlists_id = %s AND songs_id = %s")
+            update_query = """
+                UPDATE songs_has_playlists
+                   SET `index` = %s
+                 WHERE playlists_id = %s
+                   AND songs_id = %s
+            """
             cursor.execute(update_query, (new_index, playlist_id, s_id))
 
         self.conn.commit()
         cursor.close()
+        return True
 
     def get_user_profile(self, user_id):
         """

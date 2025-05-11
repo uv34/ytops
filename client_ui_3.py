@@ -4,6 +4,7 @@ import tkinter
 from tkinter import messagebox
 import customtkinter as ctk
 from tkinter import TclError
+import ssl
 
 import protocol
 from client import PlaybackController
@@ -352,7 +353,7 @@ class AudioClientApp(ctk.CTk):
         self.after(0, lambda: self.pause_button.configure(state=tk.NORMAL))
 
     def click_playlist_frame(self, event):
-        PlaylistInfoFrame(self, event.widget.playlist)
+        MyPlaylistInfoFrame(self, event.widget.playlist)
 
     def click_add_playlist(self, event):
 
@@ -604,8 +605,11 @@ class AudioClientApp(ctk.CTk):
 
 
 if __name__ == "__main__":
-    gen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    gen_sock.connect(("127.0.0.1", 5001))
+    client_ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+
+    plain_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    plain_sock.connect(("127.0.0.1", 5001))
+    gen_sock = client_ctx.wrap_socket(plain_sock, server_hostname="127.0.0.1")
 
     cryp = CryptoManager()
     key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))

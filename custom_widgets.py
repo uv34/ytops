@@ -220,6 +220,59 @@ class PlaylistFrame(BaseFrame):
             self.parent.controller.create_playlist(self.title_entry.get(), self.filepath)
             self.destroy()
 
+class MyPlaylistInfoFrame(PlaylistInfoFrame):
+    def __init__(self, parent, playlist):
+        # Initialize using the base class constructor
+        super().__init__(parent, playlist)
+
+    def _add_song_row(self, parent, song):
+        # Create row container
+        row = tk.Frame(parent, bg="#2e2e2e")
+        row.pack(fill="x", pady=2)
+
+    def _add_song_row(self, parent, song):
+        # Create row container
+        row = tk.Frame(parent, bg="#2e2e2e")
+        row.pack(fill="x", pady=2)
+
+        # Load or fallback for cover image
+        try:
+            img = Image.open(io.BytesIO(base64.b64decode(song.coverb64)))
+        except Exception:
+            img = Image.new("RGB", (40, 40), color="gray")
+        img.thumbnail((40, 40))
+        img_tk = ImageTk.PhotoImage(img)
+        self.song_images.append(img_tk)
+
+        # Display cover
+        tk.Label(row, image=img_tk, bg="#2e2e2e").pack(side="left", padx=5)
+
+        # Song info
+        tk.Label(
+            row,
+            text=f"{song.name} - {song.author}",
+            bg="#2e2e2e",
+            fg="white",
+            anchor="w"
+        ).pack(side="left", fill="x", expand=True)
+
+        # Remove button
+        remove_btn = tk.Button(
+            row,
+            text="❌",
+            bg="#ff4d4d",
+            fg="white",
+            command=lambda s=song: self.remove_song(s, remove_btn)
+        )
+        remove_btn.pack(side="right", padx=20)
+
+    def remove_song(self, song, widget):
+        # Remove song from playlist
+        if self.parent.controller.remove_song_from_playlist(self.playlist.playlist_id, song.song_id):
+            self.playlist.remove_song(song)
+            print(f"Removing song {song.name} from playlist {self.playlist.name}")
+            # Remove row from UI
+            widget.master.destroy()
 
 class BasePopup:
     def __init__(self, widget, app=None):

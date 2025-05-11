@@ -124,6 +124,16 @@ class PlaybackController:
                 return
         print("Error", "Failed to add song to playlist.")
 
+    def remove_song_from_playlist(self, pid, sid):
+        cmd, data = self.send_recv("RSFP", f"{pid}~{sid}")
+        print('data', data)
+        if cmd == "RSFP":
+            if data[:2].decode() == "OK":
+                print("Success", "Song removed from playlist successfully!")
+                return True
+        print("Error", "Failed to remove song from playlist.")
+        return False
+
     def search(self, query):
         cmd, data = self.send_recv("SSIS", query)
         if cmd == "SSIS":

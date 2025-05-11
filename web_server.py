@@ -15,9 +15,9 @@ BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'webroot/')
 print(BASE_DIR)
 CERT_FILE = os.path.join(BASE_DIR, 'cert.pem')
 KEY_FILE = os.path.join(BASE_DIR, 'key.pem')
-"""db = mysql_helper.DBController(
+db = mysql_helper.DBController(
             host="192.168.1.20", user="stopify", password="stop123", database="mydb"
-        )"""
+        )
 print(CERT_FILE)
 
 def parse_query(path: str) -> dict:

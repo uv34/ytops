@@ -8,6 +8,7 @@ import time
 import difflib
 import secrets
 from datetime import datetime, timedelta
+import ssl
 
 import jwt
 from PIL import Image
@@ -18,6 +19,7 @@ from song import Song, Playlist, PlaybackSegment
 import recommendations
 from encryption import CryptoManager
 from MailManager import Mail
+
 SECRET_KEY = 'very‑strong‑secret-key'
 THRESHOLD = 5
 
@@ -342,6 +344,15 @@ class StopifyServer:
         social_profile = {"profile": profile, "songs": songs, "playlists": playlists}
         return pickle.dumps(social_profile)
 
+    def handle_rsfp(self, data, payload):
+        if not data.count(b'~') == 2:
+            return b'NO'
+        _, pid, sid = data.split(b'~')
+        removed = self.db.remove_song_from_playlist(sid.decode(), pid.decode())
+        if removed:
+            return b'OK'
+        return b'NO'
+
     def get_playlist(self,dict):
         print('getting playlist', dict)
         pid = dict['id']
@@ -377,7 +388,7 @@ class StopifyServer:
         actions = {"RECM": self.handle_recm, "CRPL": self.handle_crpl, "ASTP": self.handle_astp,
                    "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis,
                    "USSS": self.handle_usss, "FOLW": self.handle_folw, "UNFL": self.handle_unfl,
-                   "FLWS": self.handle_flws, "PRFL": self.handle_prfl}
+                   "FLWS": self.handle_flws, "PRFL": self.handle_prfl, "RSFP": self.handle_rsfp}
         if cmd in actions:
             response = actions[cmd](data, payload)
         else:
@@ -452,6 +463,10 @@ class StopifyServer:
         self.threads.remove(threading.current_thread())
 
     def run(self):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile='webroot/cert.pem',
+                                keyfile='webroot/key.pem')
+
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.host, self.port))
         server_socket.listen(0)
@@ -461,7 +476,9 @@ class StopifyServer:
         i = 1
         while True:
             print('Main thread: before accepting ...')
-            client_socket, addr = server_socket.accept()
+            plain_socket, addr = server_socket.accept()
+            client_socket = context.wrap_socket(plain_socket, server_side=True, do_handshake_on_connect=True)
+
             t = threading.Thread(target=self.handle_client, args=(client_socket, str(i).zfill(4), addr))
             t.start()
             self.threads.append(t)
