@@ -11,13 +11,13 @@ from MailManager import Mail
 
 HOST = '0.0.0.0'  # Listen on all interfaces
 PORT = 443       # Port to listen on
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'webroot/')
 print(BASE_DIR)
-CERT_FILE = os.path.join(BASE_DIR, 'webroot/cert.pem')
-KEY_FILE = os.path.join(BASE_DIR, 'webroot/key.pem')
-db = mysql_helper.DBController(
+CERT_FILE = os.path.join(BASE_DIR, 'cert.pem')
+KEY_FILE = os.path.join(BASE_DIR, 'key.pem')
+"""db = mysql_helper.DBController(
             host="192.168.1.20", user="stopify", password="stop123", database="mydb"
-        )
+        )"""
 print(CERT_FILE)
 
 def parse_query(path: str) -> dict:
@@ -90,7 +90,7 @@ def handle_client(client_conn, client_addr):
 
         # Default to index.html for root
         if path == '/':
-            path = 'webroot/index.html'
+            path = 'index.html'
         print(f"Serving {path} to {client_addr}")
         if path.startswith('/verify-email'):
             token = parse_query(path)['token'][0]
@@ -129,7 +129,8 @@ def handle_client(client_conn, client_addr):
 
         # Construct full file path
         file_path = os.path.join(BASE_DIR, path.lstrip('/'))
-
+        print(f"File path: {file_path}")
+        print(os.path.isfile(file_path))
         if os.path.isfile(file_path):
             # Determine MIME type
             content_type, _ = mimetypes.guess_type(file_path)
