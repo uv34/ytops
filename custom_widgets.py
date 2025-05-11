@@ -167,7 +167,7 @@ class PlaylistInfoFrame(BaseFrame):
         except: img = Image.new("RGB", (40, 40), color="gray")
         img.thumbnail((40, 40)); img_tk = ImageTk.PhotoImage(img); self.song_images.append(img_tk)
         tk.Label(row, image=img_tk, bg="#2e2e2e").pack(side="left", padx=5)
-        tk.Label(row, text=f"{song.name} - {song.author}", bg="#2e2e2e", fg="white", anchor="w").pack(side="left", fill="x", expand=True)
+        tk.Label(row, text=f"{song.name} - {song.author}"[:12] + "...", bg="#2e2e2e", fg="white", anchor="w").pack(side="left", fill="x", expand=True)
 
     def _bind_mousewheel(self, canvas):
         canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 if e.delta>0 else 1, "units"))
@@ -250,7 +250,7 @@ class MyPlaylistInfoFrame(PlaylistInfoFrame):
         # Song info
         tk.Label(
             row,
-            text=f"{song.name} - {song.author}",
+            text=f"{song.name} - {song.author}"[:12] + "...",
             bg="#2e2e2e",
             fg="white",
             anchor="w"

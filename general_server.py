@@ -407,7 +407,6 @@ class StopifyServer:
         shared_key = cryp.hash_secret(shared_key)
         print(shared_key, '_' * 100)
 
-
         while True:
             cmd, data = self.recv_msg(client_socket, shared_key)
             if cmd == 'REGI':
