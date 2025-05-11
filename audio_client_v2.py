@@ -185,9 +185,15 @@ class AudioClient:
         self.playback_p.start()
         self._start_queue_checker()
         self.stream_loop(self.sock)
+        print('stream loop done')
         self.ffmpeg_process.stdin.close()
+        print('stdin closed')
+        self.ffmpeg_process.terminate()
         self.ffmpeg_process.wait()
+        print('ffmpeg process done')
         reader_t.join()
+        self.playback_p.join()
+        print('out from loops')
         self._stop_queue_checker()
         with self.played_time.get_lock():
             if self.played_time.value >= self.total_duration - 0.5:
@@ -332,6 +338,7 @@ class AudioClient:
                 self.played_time.value = seeked
                 print("   played_time set to:", self.played_time.value)
             self.stop(True)
+            self.cache.clear()
 
         print("=== SEEK finished ===\n")
 
