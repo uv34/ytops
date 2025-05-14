@@ -28,7 +28,7 @@ def closest_index(sorted_list, target):
             break
     return closest_idx
 
-def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, played_time, time_update_queue, total_duration, seek_flag):
+def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, played_time, time_update_queue, total_duration, seek_flag, pause_enqueuing):
     def pcm_chunk_to_sound(pcm):
         samples = np.frombuffer(pcm, dtype=np.int16)
         samples = samples.reshape(-1, 2)
@@ -36,7 +36,8 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
     pygame.mixer.init(frequency=sample_rate, size=-16, channels=2)
     while True:
         #print('playback process running')
-        if done_flag.is_set() and audio_queue.empty():
+        if done_flag.is_set() and audio_queue.empty() and not pause_enqueuing.is_set() and audio_queue.qsize() == 0:
+            print('playback process done 1', done_flag.is_set(), audio_queue.empty(), pause_enqueuing.is_set())
             break
         if not playing.value:
             #print('not playing')
@@ -187,7 +188,7 @@ class AudioClient:
         reader_t.start()
         self.playback_p = multiprocessing.Process(
             target=playback_process_func,
-            args=(self.audio_queue, self.done_flag, self.playing, self.volume, self.sample_rate, self.played_time, self.time_update_queue, self.total_duration, self.seek_flag),
+            args=(self.audio_queue, self.done_flag, self.playing, self.volume, self.sample_rate, self.played_time, self.time_update_queue, self.total_duration, self.seek_flag, self.pause_enqueuing),
             daemon=True
         )
         self.playback_p.start()
@@ -203,6 +204,7 @@ class AudioClient:
         print('out from loops')
         if self.in_song:
             self.playback_p.join()
+        print('playback process done')
         self._stop_queue_checker()
         with self.played_time.get_lock():
             if self.played_time.value >= self.total_duration - 0.5:
@@ -222,7 +224,6 @@ class AudioClient:
         self.in_song = True
         while True:
             cmd, chunk = protocol.get_msg(client_socket, self.key)
-            print('cmd', cmd)
             if cmd == "SCNF":
                 print("Server confirmed stop")
                 if self.done_flag:
@@ -232,23 +233,17 @@ class AudioClient:
             else:
                 if not chunk:
                     break
-                print('here')
                 page_count = chunk.count(b"OggS")
-                print('stuck')
                 self.current_pages += page_count
-                print('stuck')
                 if self._progress_callback:
                     self._progress_callback(self.current_pages, self.total_duration)
                 try:
                     if self.ffmpeg_process and self.ffmpeg_process.stdin and self.running:
-                        print('stuck')
                         self.ffmpeg_process.stdin.write(chunk)
-                        print('stuck')
                         self.ffmpeg_process.stdin.flush()
                 except BrokenPipeError:
                     print('pipe error')
                     break
-                print('here')
 
         print('exited stream loop')
 
@@ -289,11 +284,14 @@ class AudioClient:
             self.playing.value = not self.playing.value
 
     def seek(self, seeked):
+        if self.seek_flag.is_set():
+            print("Seek already in progress, ignoring new seek request.")
+            return
+        self.seek_flag.set()
         print(f"\n=== SEEK called: target={seeked} ===")
 
         # 1) Inspect cache times
         cache_times = [key[1] for key in self.cache.keys()]
-        print("Available cache times:", cache_times)
 
         # 2) Decide cache vs. server
         if cache_times and min(cache_times) <= seeked <= max(cache_times):
@@ -318,17 +316,13 @@ class AudioClient:
                 while self.audio_queue.qsize() > 0:
                     try:
                         item = self.audio_queue.get_nowait()
-                        # Only print the first element of the tuple
-                        print(f"     drained item idx: {item[0]}")
                         old_queue.append(item)
                     except queue.Empty:
-                        print(f"    Queue is empty {self.audio_queue.qsize()}")
-                print(f"   Drained {len(old_queue)} items; indexes: {[i[0] for i in old_queue]}")
+                        continue
                 print(f"   Queue size after draining: {self.audio_queue.qsize()}")
 
                 # 4) Figure out which cache entries to re-add
                 to_add = [key for key in self.cache.keys() if key[1] >= self.played_time.value]
-                print("   Cache keys to re-add (idx):", [key[0] for key in to_add])
 
                 if to_add:
                     to_add.sort(key=lambda x: x[0])
@@ -337,14 +331,12 @@ class AudioClient:
 
                     # Re-enqueue cache items
                     for key in to_add:
-                        print(f"     re-enqueue cache idx: {key[0]}")
                         # same tuple structure as before
                         self.audio_queue.put((key[0], key[2], self.cache[key][1]))
 
                     # Re-enqueue any old items beyond the cache range
                     for item in old_queue:
                         if item[0] > max_idx:
-                            print(f"     re-enqueue old_queue idx: {item[0]}")
                             self.audio_queue.put(item)
 
                 print("   Refill complete")
@@ -370,7 +362,9 @@ class AudioClient:
                 else:
                     print("   playback process finished")
             self.cache.clear()
+            print("   cache cleared")
             self.stop(True)
+        self.seek_flag.clear()
 
 
         print("=== SEEK finished ===\n")
@@ -389,7 +383,7 @@ class AudioClient:
         with self.queue_lock:
             while self.audio_queue.qsize() > 0:
                 try:
-                    item = self.audio_queue.get_nowait()
+                    self.audio_queue.get_nowait()
                     # Only print the first element of the tuple
                 except queue.Empty:
                     continue
@@ -413,7 +407,7 @@ class AudioClient:
         print("real Stopping audio streaming...")
         with self.playing.get_lock():
             self.playing.value = False
-        self.cache = {}
+        self.cache.clear()
         if self.sock:
             try:
                 self.sock.unwrap()
