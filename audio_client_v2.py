@@ -37,6 +37,7 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
         if done_flag.is_set() and audio_queue.empty():
             break
         if not playing.value:
+            print('not playing')
             pygame.time.Clock().tick(50)
             continue
         try:
@@ -60,7 +61,7 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
     pygame.mixer.quit()
 
 class AudioClient:
-    def __init__(self, host='127.0.0.1', port=5000, chunk_size=8192):
+    def __init__(self, host='10.0.0.9', port=5000, chunk_size=8192):
         self.host = host
         self.port = port
         self.chunk_size = chunk_size
@@ -368,6 +369,12 @@ class AudioClient:
                 print('sent stop')
         else:
             print('already finished receiving')
+
+    def exit(self):
+        self.stop()
+        self.done_flag.set()
+        self.in_song = False
+        self.running = False
 
     def real_stop(self):
         with self.playing.get_lock():

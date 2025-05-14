@@ -7,8 +7,9 @@ import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
 import client_ui_3
 from encryption import CryptoManager
 import base64
+import ssl
 
-SERVER_IP = "127.0.0.1"
+SERVER_IP = "10.0.0.9"
 SERVER_PORT = 5001
 
 
@@ -21,6 +22,7 @@ class LoginRegisterWindow(tk.Tk):
         self.logged_in_username = None
         self.token = '###'
         self.key = b''
+        self.status = None
 
         self.primary_ui = "#A8DADC"
         self.secondary_accent = "#F4C2C2"
@@ -104,8 +106,11 @@ class LoginRegisterWindow(tk.Tk):
     def connect(self):
         if self.client_socket is None:
             try:
+                client_ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
                 self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
                 self.client_socket.connect((SERVER_IP, SERVER_PORT))
+                self.client_socket = client_ctx.wrap_socket(self.client_socket, server_hostname=SERVER_IP)
                 cryp = CryptoManager()
                 key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
                 cmd, data = protocol.get_msg(self.client_socket)
@@ -143,7 +148,9 @@ class LoginRegisterWindow(tk.Tk):
             cmd, resp = self.send_receive("LOGI", data)
             response, token = resp.split('~')
             if "successful" in response.lower():
-                self.login_success, self.logged_in_username, self.token = True, username, token
+                status = response[-5:]
+                print('status', status)
+                self.login_success, self.logged_in_username, self.token, self.status = True, username, token, status
                 self.after(0, lambda: messagebox.showinfo("Login", response))
                 self.after(0, self.destroy1)
             else:
@@ -167,7 +174,7 @@ class LoginRegisterWindow(tk.Tk):
             cmd, resp = self.send_receive("REGI", data)
             response, token = resp.split('~')
             if "successful" in response.lower():
-                self.login_success, self.logged_in_username, self.token = True, username, token
+                self.login_success, self.logged_in_username, self.token, self.status = True, username, token, False
                 self.after(0, lambda: messagebox.showinfo("Registration", response))
                 self.after(0, self.destroy1)
             else:
@@ -185,17 +192,16 @@ class MainWindow(tk.Tk):
 def run_login_register_window():
     app = LoginRegisterWindow()
     app.mainloop()
-    return app.login_success, app.logged_in_username, app.token, app.client_socket, app.key
+    return app.login_success, app.logged_in_username, app.token, app.client_socket, app.key, app.status
 
 def main():
-    success, user, token, sock, key = run_login_register_window()
+    success, user, token, sock, key, status = run_login_register_window()
     if success and user:
         tk._default_root = None
         print(token)
-        client_ui_3.AudioClientApp(token, sock, user, key).mainloop()
-        if sock:
-            print(sock)
-            sock.send(protocol.create_msg('EXIT', b''), key)
+        app = client_ui_3.AudioClientApp(token, sock, user, key, status)
+        app.mainloop()
+        app.controller.logout()
 
 
 if __name__ == "__main__":

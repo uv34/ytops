@@ -1,4 +1,5 @@
 import pickle
+import sys
 import threading
 
 import protocol
@@ -22,6 +23,7 @@ class PlaybackController:
         self.status = ""
         self.key = key
         self._send_lock = threading.Lock()
+        self.active = True
 
         # -=+ Callbacks +=-
         self.pause_enable_callback = pause_enable_callback
@@ -60,10 +62,10 @@ class PlaybackController:
             return cmd, data
 
     def logout(self):
-        self.stop_stream()
+        self.active = False
+        self.exit()
         self.stream_thread = None
         self.client = None
-        self.gen_socket.send(protocol.create_msg('EXIT', b'', self.key))
         self.gen_socket.close()
 
     def play_playlist(self, p):
@@ -217,6 +219,12 @@ class PlaybackController:
         self.update_status("Stopped")
         self.pause_disable_callback()
 
+    def exit(self):
+        if self.client:
+            self.client.exit()
+        self.pause_disable_callback()
+        sys.exit()
+
     def start_button(self):
         self.skipped = True
         self.song_queue.next()
@@ -260,6 +268,10 @@ class PlaybackController:
             print("Info", "Already streaming!")
             return
 
+        if not self.active:
+            print("Info", "Not streaming!")
+            return
+
         song_id = sid
         time = 0
         self.started_playing_time = 0.0
@@ -286,7 +298,7 @@ class PlaybackController:
                 if not self.skipped:
                     self.song_queue.next()
                 self.skipped = False
-                if self.song_queue.current_song:
+                if self.song_queue.current_song and self.active:
                     listened_segment = PlaybackSegment(self.song_queue.current_song.song_id, self.started_playing_time
                                                        , self.played_time, self.total_time)
                     msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)), self.key)

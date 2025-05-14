@@ -17,7 +17,7 @@ def time_str(time: float) -> str:
 
 
 class AudioClientApp(ctk.CTk):
-    def __init__(self, token, gen_sock, username, key):
+    def __init__(self, token, gen_sock, username, key, status):
         super().__init__()
         self.title("Muniz Player sigmaboii123")
         self.geometry("400x160")
@@ -29,6 +29,7 @@ class AudioClientApp(ctk.CTk):
         self.prime_text = "#36454F"
         self.second_text = "#A0A0A0"
         self.configure(fg_color=self.background)
+        self.status = status
 
         self.resizable(False, False)
 
@@ -333,10 +334,10 @@ class AudioClientApp(ctk.CTk):
         super().destroy()
 
         # now show the login/register dialog
-        success, user, token, sock, key = general_client.run_login_register_window()
+        success, user, token, sock, key, status = general_client.run_login_register_window()
         tk._default_root = None
         if user and success:
-            AudioClientApp(token, sock, user, key).mainloop()
+            AudioClientApp(token, sock, user, key, status).mainloop()
 
     def search_songs(self, event):
         search_term = self.search_entry.get()
@@ -608,8 +609,8 @@ if __name__ == "__main__":
     client_ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
 
     plain_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    plain_sock.connect(("127.0.0.1", 5001))
-    gen_sock = client_ctx.wrap_socket(plain_sock, server_hostname="127.0.0.1")
+    plain_sock.connect(("10.0.0.9", 5001))
+    gen_sock = client_ctx.wrap_socket(plain_sock, server_hostname="10.0.0.9")
 
     cryp = CryptoManager()
     key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
@@ -627,6 +628,7 @@ if __name__ == "__main__":
     gen_sock.send(protocol.create_msg('LOGI', data, key))
     cmd, resp = protocol.get_msg(gen_sock, key)
     response, token = resp.decode().split('~')
-    app = AudioClientApp(token, gen_sock, '1', key)
+    app = AudioClientApp(token, gen_sock, '1', key, 'ragil')
     app.mainloop()
-    gen_sock.send(protocol.create_msg('EXIT', b''))
+    app.controller.logout()
+    # gen_sock.send(protocol.create_msg('EXIT', b''))
