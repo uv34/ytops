@@ -56,7 +56,6 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
             #print('playing')
             if seek_flag.is_set():
                 pygame.mixer.stop()
-                seek_flag.clear()
                 break
             pygame.time.Clock().tick(200)
         with played_time.get_lock():
