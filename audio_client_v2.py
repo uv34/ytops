@@ -1,5 +1,6 @@
 import socket
 import subprocess
+import sys
 import threading
 import queue
 import multiprocessing
@@ -34,26 +35,24 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
         return sndarray.make_sound(samples)
     pygame.mixer.init(frequency=sample_rate, size=-16, channels=2)
     while True:
-        print('playback process running')
+        #print('playback process running')
         if done_flag.is_set() and audio_queue.empty():
             break
         if not playing.value:
-            print('not playing')
+            #print('not playing')
             pygame.time.Clock().tick(50)
             continue
         try:
             item = audio_queue.get(timeout=0.1)
-            if item is None:  # Check for sentinel value
-                break
             i, duration_s, pcm = item
         except queue.Empty:
-            print('queue empty')
+            #print('queue empty')
             continue
         sound = pcm_chunk_to_sound(pcm)
         sound.set_volume(volume.value)
         sound.play()
         while pygame.mixer.get_busy():
-            print('playing')
+            #print('playing')
             if seek_flag.is_set():
                 pygame.mixer.stop()
                 seek_flag.clear()
@@ -123,6 +122,7 @@ class AudioClient:
         cryp = CryptoManager()
         key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
         cmd, data = protocol.get_msg(self.sock)
+        print('cmd', cmd)
         if cmd != 'SHKY':
             print('unexpected response, trying again')
             self.ask_for_song(song_id, t, token)
@@ -157,6 +157,7 @@ class AudioClient:
 
     def receive_stream(self):
         cmd, data = protocol.get_msg(self.sock)
+        print('cmd', cmd)
         if cmd == "ERR ":
             print("Error from server:", data.decode())
             return
@@ -221,6 +222,7 @@ class AudioClient:
         self.in_song = True
         while True:
             cmd, chunk = protocol.get_msg(client_socket, self.key)
+            print('cmd', cmd)
             if cmd == "SCNF":
                 print("Server confirmed stop")
                 if self.done_flag:
@@ -230,17 +232,24 @@ class AudioClient:
             else:
                 if not chunk:
                     break
+                print('here')
                 page_count = chunk.count(b"OggS")
+                print('stuck')
                 self.current_pages += page_count
+                print('stuck')
                 if self._progress_callback:
                     self._progress_callback(self.current_pages, self.total_duration)
                 try:
-                    self.ffmpeg_process.stdin.write(chunk)
-                    self.ffmpeg_process.stdin.flush()
-
+                    if self.ffmpeg_process and self.ffmpeg_process.stdin and self.running:
+                        print('stuck')
+                        self.ffmpeg_process.stdin.write(chunk)
+                        print('stuck')
+                        self.ffmpeg_process.stdin.flush()
                 except BrokenPipeError:
                     print('pipe error')
                     break
+                print('here')
+
         print('exited stream loop')
 
     def reader_thread_func(self):
@@ -248,21 +257,27 @@ class AudioClient:
         virtual_time = self.played_time.value
         self.running = True
         c = 0
+        to_add = queue.Queue()
         while self.running:
             if self.done_flag.is_set():
                 break
+
+            pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
+
+            if not pcm:
+                break
+            to_add.put(pcm)
             if self.pause_enqueuing.is_set():
                 pygame.time.Clock().tick(50)
                 continue
-            pcm = self.ffmpeg_process.stdout.read(self.chunk_size)
-            if not pcm:
-                break
-            n_frames = len(pcm) / bytes_per_frame
-            duration_s = n_frames / self.sample_rate
-            self.cache[(c, virtual_time, duration_s)] = (duration_s, pcm)
-            with self.queue_lock:
-                if not self.pause_enqueuing.is_set():
-                    self.audio_queue.put((c, duration_s, pcm))
+            while not to_add.empty():
+                pcm = to_add.get()
+                n_frames = len(pcm) / bytes_per_frame
+                duration_s = n_frames / self.sample_rate
+                self.cache[(c, virtual_time, duration_s)] = (duration_s, pcm)
+                with self.queue_lock:
+                    if not self.pause_enqueuing.is_set():
+                        self.audio_queue.put((c, duration_s, pcm))
 
             c += 1
             virtual_time += duration_s
@@ -345,8 +360,18 @@ class AudioClient:
             with self.played_time.get_lock():
                 self.played_time.value = seeked
                 print("   played_time set to:", self.played_time.value)
-            self.stop(True)
+            if hasattr(self, 'playback_p'):
+                print("Stopping playback process...")
+                self.playback_p.join(timeout=0.1)
+                if self.playback_p.is_alive():
+                    self.playback_p.terminate()
+                    self.playback_p.join()
+                    print("   playback process terminated")
+                else:
+                    print("   playback process finished")
             self.cache.clear()
+            self.stop(True)
+
 
         print("=== SEEK finished ===\n")
 
@@ -366,10 +391,8 @@ class AudioClient:
                 try:
                     item = self.audio_queue.get_nowait()
                     # Only print the first element of the tuple
-                    print(f"     drained item idx: {item[0]}")
                 except queue.Empty:
-                    print(f"    Queue is empty {self.audio_queue.qsize()}")
-            self.audio_queue.put(None)
+                    continue
         print('not playing and queue cleared', self.audio_queue.qsize())
         if not self.done_flag.is_set():
             if self.sock:
@@ -384,8 +407,10 @@ class AudioClient:
         self.done_flag.set()
         self.in_song = False
         self.running = False
+        sys.exit(0)
 
     def real_stop(self):
+        print("real Stopping audio streaming...")
         with self.playing.get_lock():
             self.playing.value = False
         self.cache = {}

@@ -57,7 +57,7 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
+        self.db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb", autocommit=True)
         self.stop_events = {}
 
     def start_server(self):
@@ -189,7 +189,8 @@ class OggServer:
             print(f"Streaming from offset={offset}, page={page_num}")
             self.stream_from_offset(conn, song_id, offset, shared_key)
 
-        conn.sendall(protocol.create_msg("SCNF", b"1", shared_key))
+        conn.sendall(protocol.create_msg("SCNF", b"", shared_key))
+        print('sending SCNF')
         stop_event.set()
         stop_thread.join()
 

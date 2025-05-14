@@ -61,7 +61,13 @@ if __name__ == '__main__':
     create_song(db, r"C:\Users\uv\Downloads\guys.ogg", "כל החברה", "מוניקה סקס", album_id)
     create_song(db, r"C:\Users\uv\Downloads\floor.ogg", "על הרצפה", "מוניקה סקס", album_id)
     create_song(db, r"C:\Users\uv\Downloads\wound.ogg", "פצעים ונשיקות", "מוניקה סקס", album_id)
-    create_song(db, r"C:\Users\uv\Downloads\gray.ogg", "מכה אפורה", "מוניקה סקס", album_id)"""
+    create_song(db, r"C:\Users\uv\Downloads\gray.ogg", "מכה אפורה", "מוניקה סקס", album_id)
 
     album_id = create_album(db, r"C:\Users\uv\Downloads\download (2).jpeg", "Single", "Laufey")
     create_song(db, r"C:\Users\uv\Downloads\Laufey - From The Start (Official Music Video) (1).ogg", "From The Start", "Laufey", album_id)
+    
+    album_id = create_album(db, r"C:\Users\uv\Downloads\p_god.jpg", "Single", "Polyphia")
+    create_song(db, r"C:\Users\uv\Downloads\Polyphia - Playing God (Official Music Video).ogg", "Playing God", "Polyphia", album_id)
+    """
+    album_id = create_album(db, r"C:\Users\uv\Downloads\young.jpeg", "Writer's Block", "Peter Bjorn & John")
+    create_song(db, r"C:\Users\uv\Downloads\Peter Bjorn And John - Young Folks.ogg", "Young Folks", "Peter Bjorn & John", album_id)
