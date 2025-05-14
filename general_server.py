@@ -55,7 +55,7 @@ class StopifyServer:
         self.client_users = {}
         self.threads = []
         self.db = mysql_helper.DBController(
-            host="192.168.1.20", user="stopify", password="stop123", database="mydb", autocommit=True
+            host="127.0.0.1", user="stopify", password="stop123", database="mydb", autocommit=True
         )
         self.recommender = recommendations.Recommender(self.db)
 
@@ -137,7 +137,10 @@ class StopifyServer:
             self.client_users[client_socket] = User(id, username, status, self.db.is_verified(id))
             token = generate_token(id)
             print(f'token generated: {token}')
-            return True, b'login successful~' + token.encode()
+            print('user status', status)
+            if status == 'a':
+                return True, b'login successful admin~' + token.encode()
+            return True, b'login successful ragil~' + token.encode()
         return False, b'password or username incorrect~###'
 
     def handle_register(self, data, client_socket):
@@ -475,13 +478,16 @@ class StopifyServer:
         i = 1
         while True:
             print('Main thread: before accepting ...')
-            plain_socket, addr = server_socket.accept()
-            client_socket = context.wrap_socket(plain_socket, server_side=True, do_handshake_on_connect=True)
+            try:
+                plain_socket, addr = server_socket.accept()
+                client_socket = context.wrap_socket(plain_socket, server_side=True, do_handshake_on_connect=True)
 
-            t = threading.Thread(target=self.handle_client, args=(client_socket, str(i).zfill(4), addr))
-            t.start()
-            self.threads.append(t)
-            i += 1
+                t = threading.Thread(target=self.handle_client, args=(client_socket, str(i).zfill(4), addr))
+                t.start()
+                self.threads.append(t)
+                i += 1
+            except ssl.SSLError and ConnectionResetError as e:
+                print('failed to connect with ssl: ', e)
 
         print("Closing server")
         server_socket.close()
