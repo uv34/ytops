@@ -34,6 +34,7 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
         return sndarray.make_sound(samples)
     pygame.mixer.init(frequency=sample_rate, size=-16, channels=2)
     while True:
+        print('playback process running')
         if done_flag.is_set() and audio_queue.empty():
             break
         if not playing.value:
@@ -41,13 +42,18 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
             pygame.time.Clock().tick(50)
             continue
         try:
-            i, duration_s, pcm = audio_queue.get(timeout=0.1)
+            item = audio_queue.get(timeout=0.1)
+            if item is None:  # Check for sentinel value
+                break
+            i, duration_s, pcm = item
         except queue.Empty:
+            print('queue empty')
             continue
         sound = pcm_chunk_to_sound(pcm)
         sound.set_volume(volume.value)
         sound.play()
         while pygame.mixer.get_busy():
+            print('playing')
             if seek_flag.is_set():
                 pygame.mixer.stop()
                 seek_flag.clear()
@@ -61,7 +67,7 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
     pygame.mixer.quit()
 
 class AudioClient:
-    def __init__(self, host='10.0.0.9', port=5000, chunk_size=8192):
+    def __init__(self, host='127.0.0.1', port=5000, chunk_size=8192):
         self.host = host
         self.port = port
         self.chunk_size = chunk_size
@@ -193,8 +199,9 @@ class AudioClient:
         self.ffmpeg_process.wait()
         print('ffmpeg process done')
         reader_t.join()
-        self.playback_p.join()
         print('out from loops')
+        if self.in_song:
+            self.playback_p.join()
         self._stop_queue_checker()
         with self.played_time.get_lock():
             if self.played_time.value >= self.total_duration - 0.5:
@@ -362,6 +369,7 @@ class AudioClient:
                     print(f"     drained item idx: {item[0]}")
                 except queue.Empty:
                     print(f"    Queue is empty {self.audio_queue.qsize()}")
+            self.audio_queue.put(None)
         print('not playing and queue cleared', self.audio_queue.qsize())
         if not self.done_flag.is_set():
             if self.sock:
@@ -372,6 +380,7 @@ class AudioClient:
 
     def exit(self):
         self.stop()
+        self.real_stop()
         self.done_flag.set()
         self.in_song = False
         self.running = False
@@ -381,6 +390,10 @@ class AudioClient:
             self.playing.value = False
         self.cache = {}
         if self.sock:
+            try:
+                self.sock.unwrap()
+            except Exception as e:
+                print(f"Error unwrapping socket: {e}")
             try:
                 self.sock.close()
             except Exception as e:

@@ -55,7 +55,7 @@ class StopifyServer:
         self.client_users = {}
         self.threads = []
         self.db = mysql_helper.DBController(
-            host="127.0.0.1", user="stopify", password="stop123", database="mydb", autocommit=True
+            host="192.168.1.20", user="stopify", password="stop123", database="mydb", autocommit=True
         )
         self.recommender = recommendations.Recommender(self.db)
 
@@ -486,7 +486,7 @@ class StopifyServer:
                 t.start()
                 self.threads.append(t)
                 i += 1
-            except ssl.SSLError and ConnectionResetError as e:
+            except ssl.SSLError or ConnectionResetError as e:
                 print('failed to connect with ssl: ', e)
 
         print("Closing server")

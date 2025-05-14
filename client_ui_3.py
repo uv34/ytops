@@ -5,6 +5,7 @@ from tkinter import messagebox
 import customtkinter as ctk
 from tkinter import TclError
 import ssl
+import sys
 
 import protocol
 from client import PlaybackController
@@ -32,6 +33,7 @@ class AudioClientApp(ctk.CTk):
         self.status = status
 
         self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.username = username
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
@@ -96,6 +98,14 @@ class AudioClientApp(ctk.CTk):
                                            fg_color=self.background, text_color=self.prime_text, font=("Nunito", 12)
                                            , hover_color=self.primary_ui)
         self.toggle_button.grid(row=4, column=4, sticky='w', padx=5)
+
+    def on_close(self):
+        if self.controller:
+            self.controller.exit()
+            print("exiting")
+        self.destroy()
+        self.quit()
+        sys.exit(0)
 
     def make_middle_frame(self):
         self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color=self.background, command=self.on_tab_change)
@@ -605,12 +615,14 @@ class AudioClientApp(ctk.CTk):
         self._add_user_to_following(user, len(self.following_frame.winfo_children()))
 
 
+
+
 if __name__ == "__main__":
     client_ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
 
     plain_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    plain_sock.connect(("10.0.0.9", 5001))
-    gen_sock = client_ctx.wrap_socket(plain_sock, server_hostname="10.0.0.9")
+    plain_sock.connect(("127.0.0.1", 5001))
+    gen_sock = client_ctx.wrap_socket(plain_sock, server_hostname="127.0.0.1")
 
     cryp = CryptoManager()
     key_msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
@@ -630,5 +642,4 @@ if __name__ == "__main__":
     response, token = resp.decode().split('~')
     app = AudioClientApp(token, gen_sock, '1', key, 'ragil')
     app.mainloop()
-    app.controller.logout()
     # gen_sock.send(protocol.create_msg('EXIT', b''))

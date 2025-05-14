@@ -9,7 +9,7 @@ from encryption import CryptoManager
 import base64
 import ssl
 
-SERVER_IP = "10.0.0.9"
+SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
 
 
@@ -201,7 +201,7 @@ def main():
         print(token)
         app = client_ui_3.AudioClientApp(token, sock, user, key, status)
         app.mainloop()
-        app.controller.logout()
+        app.controller.exit()
 
 
 if __name__ == "__main__":

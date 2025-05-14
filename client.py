@@ -1,6 +1,7 @@
 import pickle
 import sys
 import threading
+import ssl
 
 import protocol
 from audio_client_v2 import AudioClient
@@ -63,7 +64,10 @@ class PlaybackController:
 
     def logout(self):
         self.active = False
-        self.exit()
+        self.stop_stream()
+        print('logout')
+        self._wait_for_stop()
+        print('logout')
         self.stream_thread = None
         self.client = None
         self.gen_socket.close()
@@ -85,7 +89,11 @@ class PlaybackController:
     def _wait_for_stop(self):
         if self.stream_thread and self.stream_thread.is_alive():
             timer = threading.Timer(0.1, self._wait_for_stop)
+            timer.daemon = True
             timer.start()
+        else:
+            print('stopped')
+        print('1')
 
     def create_playlist(self, name, cover_file):
         with open(cover_file, "rb") as cover_file:
@@ -202,6 +210,7 @@ class PlaybackController:
     def start_after_stop(self, song_id):
         if self.stream_thread and self.stream_thread.is_alive():
             timer = threading.Timer(0.1, self.start_after_stop, args=(song_id,))
+            timer.daemon = True
             timer.start()
         else:
             self.start_stream(song_id)
@@ -220,10 +229,28 @@ class PlaybackController:
         self.pause_disable_callback()
 
     def exit(self):
+        self.active = False
         if self.client:
             self.client.exit()
+            print('logout')
+            self._wait_for_stop()
+            print('logout')
         self.pause_disable_callback()
-        sys.exit()
+        self.stream_thread = None
+        self.client = None
+        try:
+            self.gen_socket.unwrap()  # Attempt to send SSL closure alert
+            print("General socket unwrapped")
+        except ssl.SSLError as e:
+            if "APPLICATION_DATA_AFTER_CLOSE_NOTIFY" in str(e):
+                print("Warning: Server sent application data after close notify. Ignoring.")
+            else:
+                print(f"Error unwrapping gen_socket: {e}")
+        except Exception as e:
+            print(f"Unexpected error during unwrap: {e}")
+        finally:
+            self.gen_socket.close()
+            print("General socket closed")
 
     def start_button(self):
         self.skipped = True
@@ -329,6 +356,7 @@ class PlaybackController:
                 self.update_cover_callback()
             if self.client:
                 timer = threading.Timer(0.1, check_metadata)
+                timer.daemon = True
                 timer.start()
 
         check_metadata()
