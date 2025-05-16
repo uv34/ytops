@@ -119,6 +119,10 @@ class AudioClientApp(ctk.CTk):
         self._build_songs_tab(self.tab_view.tab("songs"))
         self._build_queue_tab(self.tab_view.tab("queue"))
         self._build_social_tab(self.tab_view.tab("social"))
+        if self.status == 'admin':
+            self.tab_view.add('admin')
+            self.tab_view.tab('admin').configure(fg_color=self.tab_view.cget("fg_color"))
+            self._build_admin_tab(self.tab_view.tab("admin"))
 
         self.tab_view.grid_remove()
 
@@ -238,17 +242,160 @@ class AudioClientApp(ctk.CTk):
             widget.bind("<Button-3>", self.profile_actions)
             widget.bind("<Button-1>", self._display_soc)
 
-    def _display_soc(self, event):
+    def _on_upload_song(self):
+        y = lambda: self.controller.upload_song(self.song_file, self.song_name_entry.get(), self.song_author_entry.get(),
+                                    self.album_id_entry.get())
+        self.loading_screen(y)
+
+    def _on_upload_album(self):
+        y = lambda: self.controller.upload_album(self.album_name_entry.get(), self.album_author_entry.get(), self.cover_file)
+        self.loading_screen(y)
+
+    def _update_admin_albums(self, albums):
+        for widget in self.albums_frame.winfo_children():
+            widget.destroy()
+
+        for row, (name, author, cover64b) in enumerate(albums):
+            album_label = ctk.CTkLabel(self.albums_frame, text=f"{name} - {author}", text_color=self.prime_text)
+            album_label.grid(row=row, column=0, padx=5, pady=5)
+
+            album_cover = ImageTk.PhotoImage(Image.open(io.BytesIO(base64.b64decode(cover64b))))
+            album_cover_label = ctk.CTkLabel(self.albums_frame, image=album_cover, text='')
+            album_cover_label.image = album_cover  # Keep a reference to avoid garbage collection
+            album_cover_label.grid(row=row, column=1, padx=5, pady=5)
+
+    def _on_get_albums(self):
+        self.loading_screen(self.controller.get_albums, self._update_admin_albums)
+
+    def _build_admin_tab(self, parent):
+        # --- Upload Song Section ---
+        self.admin_frame = ctk.CTkScrollableFrame(
+            parent,
+            width=334,
+            height=294,
+            orientation="vertical",
+            fg_color=parent.cget("fg_color")
+        )
+        self.admin_frame.pack()
+        song_frame = tk.LabelFrame(self.admin_frame, text="Upload Song", padx=10, pady=10)
+        song_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+
+        tk.Button(song_frame, text="Choose OGG File", command=self._choose_song_file).grid(row=0, column=0, sticky="w")
+        self.song_file_label = tk.Label(song_frame, text="No file chosen")
+        self.song_file_label.grid(row=0, column=1, sticky="w")
+
+        tk.Label(song_frame, text="Name:").grid(row=1, column=0, sticky="e")
+        self.song_name_entry = tk.Entry(song_frame)
+        self.song_name_entry.grid(row=1, column=1, sticky="we")
+
+        tk.Label(song_frame, text="Author:").grid(row=2, column=0, sticky="e")
+        self.song_author_entry = tk.Entry(song_frame)
+        self.song_author_entry.grid(row=2, column=1, sticky="we")
+
+        tk.Label(song_frame, text="Album ID:").grid(row=3, column=0, sticky="e")
+        self.album_id_entry = tk.Entry(song_frame)
+        self.album_id_entry.grid(row=3, column=1, sticky="we")
+
+        tk.Button(song_frame, text="Upload Song", command=self._on_upload_song).grid(row=4, column=0, columnspan=2,
+                                                                                     pady=5)
+
+        # --- Upload Album Section ---
+        album_frame = tk.LabelFrame(self.admin_frame, text="Upload Album", padx=10, pady=10)
+        album_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+
+        tk.Button(album_frame, text="Choose Cover Image", command=self._choose_cover_file).grid(row=0, column=0,
+                                                                                                sticky="w")
+        self.cover_file_label = tk.Label(album_frame, text="No file chosen")
+        self.cover_file_label.grid(row=0, column=1, sticky="w")
+
+        tk.Label(album_frame, text="Name:").grid(row=1, column=0, sticky="e")
+        self.album_name_entry = tk.Entry(album_frame)
+        self.album_name_entry.grid(row=1, column=1, sticky="we")
+
+        tk.Label(album_frame, text="Author:").grid(row=2, column=0, sticky="e")
+        self.album_author_entry = tk.Entry(album_frame)
+        self.album_author_entry.grid(row=2, column=1, sticky="we")
+
+        tk.Button(album_frame, text="Upload Album", command=self._on_upload_album).grid(row=3, column=0, columnspan=2,
+                                                                                        pady=5)
+
+        # --- Get Albums Section ---
+        list_frame = tk.LabelFrame(self.admin_frame, text="Available Albums", padx=10, pady=10)
+        list_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+
+        tk.Button(list_frame, text="Refresh List", command=self._on_get_albums).grid(row=0, column=0, sticky="w")
+        self.albums_frame = tk.Frame(list_frame, height=6)
+        self.albums_frame.grid(row=1, column=0, sticky="nsew")
+
+        # make columns expand
+        self.grid_columnconfigure(0, weight=1)
+        song_frame.grid_columnconfigure(1, weight=1)
+        album_frame.grid_columnconfigure(1, weight=1)
+        list_frame.grid_rowconfigure(1, weight=1)
+        list_frame.grid_columnconfigure(0, weight=1)
+
+    def _choose_song_file(self):
+        path = filedialog.askopenfilename(
+            title="Select OGG Song File", filetypes=[("OGG files", "*.ogg"), ("All files", "*")]
+        )
+        if path:
+            self.song_file = path
+            self.song_file_label.config(text=path.split('/')[-1])
+
+    def _choose_cover_file(self):
+        path = filedialog.askopenfilename(
+            title="Select Cover Image", filetypes=[("Image files", "*.jpg *.jpeg *.png"), ("All files", "*")]
+        )
+        if path:
+            self.cover_file = path
+            self.cover_file_label.config(text=path.split('/')[-1])
+
+    def loading_screen(self, action, after=None):
         root = self.winfo_toplevel()
 
-        # 1) CTkToplevel overlay
         overlay = ctk.CTkToplevel(root)
         overlay.overrideredirect(True)
         overlay.attributes('-topmost', True)
-        overlay.attributes('-alpha', 0.5)            # 50% transparent
-        overlay.configure(fg_color='black')          # CTk uses fg_color/background
+        overlay.attributes('-alpha', 0.5)
+        overlay.configure(fg_color='black')
 
-        # 2) keep it synced to the root’s size & position
+        def sync(e=None):
+            x, y = root.winfo_rootx(), root.winfo_rooty()
+            w, h = root.winfo_width(), root.winfo_height()
+            overlay.geometry(f"{w}x{h}+{x}+{y}")
+
+        sync()
+        root.bind('<Configure>', sync)  # whenever root moves/resizes
+
+        spinner = ctk.CTkProgressBar(master=overlay, orientation='horizontal',
+                                     mode='indeterminate')
+        spinner.place(relx=0.5, rely=0.5, anchor='center')
+        spinner.start()
+
+        def get_profile():
+            try:
+                result = action()
+            finally:
+                def on_done():
+                    root.unbind('<Configure>')  # remove the binding
+                    spinner.stop()
+                    overlay.destroy()
+                    if after:
+                        after(result)
+
+                self.after(0, on_done)
+
+        threading.Thread(target=get_profile, daemon=True).start()
+
+    def _display_soc(self, event):
+        root = self.winfo_toplevel()
+
+        overlay = ctk.CTkToplevel(root)
+        overlay.overrideredirect(True)
+        overlay.attributes('-topmost', True)
+        overlay.attributes('-alpha', 0.5)
+        overlay.configure(fg_color='black')
+
         def sync(e=None):
             x, y = root.winfo_rootx(), root.winfo_rooty()
             w, h = root.winfo_width(), root.winfo_height()
@@ -256,13 +403,11 @@ class AudioClientApp(ctk.CTk):
         sync()
         root.bind('<Configure>', sync)  # whenever root moves/resizes
 
-        # 3) center a CTkProgressBar as an indeterminate spinner
         spinner = ctk.CTkProgressBar(master=overlay, orientation='horizontal',
                                      mode='indeterminate')
         spinner.place(relx=0.5, rely=0.5, anchor='center')
         spinner.start()
 
-        # 4) background fetch + teardown
         def get_profile():
             try:
                 profile = self.controller.get_social_profile(event.widget.username)
@@ -636,10 +781,10 @@ if __name__ == "__main__":
     shared_key = cryp.hash_secret(shared_key)
     key = shared_key
     print(shared_key, '_' * 100)
-    data = f"2~2".encode()
+    data = f"1~1".encode()
     gen_sock.send(protocol.create_msg('LOGI', data, key))
     cmd, resp = protocol.get_msg(gen_sock, key)
     response, token = resp.decode().split('~')
-    app = AudioClientApp(token, gen_sock, '1', key, 'ragil')
+    app = AudioClientApp(token, gen_sock, '1', key, 'admin')
     app.mainloop()
     # gen_sock.send(protocol.create_msg('EXIT', b''))

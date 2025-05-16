@@ -646,6 +646,31 @@ class DBController:
         cursor.close()
         return is_verified
 
+    def is_admin(self, user_id):
+        cursor = self.conn.cursor()
+        query = "SELECT status FROM `user` WHERE id = %s"
+        cursor.execute(query, (user_id,))
+        status = cursor.fetchone()[0]
+        cursor.close()
+        print(status)
+        return status == 'a'
+
+    def get_albums_ids_names(self):
+        cursor = self.conn.cursor()
+        query = "SELECT id, name FROM album"
+        cursor.execute(query)
+        albums = cursor.fetchall()
+        cursor.close()
+        return albums
+
+    def album_exists(self, album_id):
+        cursor = self.conn.cursor()
+        query = "SELECT COUNT(*) FROM album WHERE id = %s"
+        cursor.execute(query, (album_id,))
+        exists = cursor.fetchone()[0]
+        cursor.close()
+        return exists > 0
+
     def close(self):
         self.conn.close()
 
@@ -663,7 +688,9 @@ if __name__ == '__main__':
     print(db.get_followings_username(5))
     print(db.get_social_table())
     print(db.get_user_playlist_by_username("1"))
-    db.verify_user(3)
+    print(db.is_admin(1))
+    print(db.get_albums_ids_names())
+
     """user_id = 10
 
     # Create a new playlist for the user.

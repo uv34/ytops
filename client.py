@@ -206,6 +206,36 @@ class PlaybackController:
             return songs, playlists
         return [], []
 
+    def upload_song(self, song_file, song_name, song_author, album_id):
+        with open(song_file, "rb") as song_f:
+            song_data = song_f.read()
+        songb64 = base64.b64encode(song_data)
+        cmd, data = self.send_recv("UPLS", f"{song_name}~{song_author}~{album_id}~{songb64.decode()}")
+        if cmd == "UPLS":
+            if data[:2].decode() == "OK":
+                print("Success", "Song uploaded successfully!")
+                return
+        print("Error", "Failed to upload song.")
+
+    def upload_album(self, album_name, album_author, cover_file):
+        with open(cover_file, "rb") as cover_f:
+            cover_data = cover_f.read()
+        coverb64 = base64.b64encode(cover_data)
+        cmd, data = self.send_recv("UPLA", f"{album_name}~{album_author}~{coverb64.decode()}")
+        if cmd == "UPLA":
+            if data[:2].decode() == "OK":
+                print("Success", "Album uploaded successfully!")
+                return
+        print("Error", "Failed to upload album.")
+
+    def get_albums(self):
+        cmd, data = self.send_recv("GETA", "")
+        if cmd == "GETA":
+            albums = pickle.loads(data)
+            print("Fetched albums")
+            return albums
+        return []
+
     #  -=- streaming -=-
     def start_after_stop(self, song_id):
         if self.stream_thread and self.stream_thread.is_alive():

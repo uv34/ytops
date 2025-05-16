@@ -68,6 +68,7 @@ if __name__ == '__main__':
     
     album_id = create_album(db, r"C:\Users\uv\Downloads\p_god.jpg", "Single", "Polyphia")
     create_song(db, r"C:\Users\uv\Downloads\Polyphia - Playing God (Official Music Video).ogg", "Playing God", "Polyphia", album_id)
-    """
+    
     album_id = create_album(db, r"C:\Users\uv\Downloads\young.jpeg", "Writer's Block", "Peter Bjorn & John")
     create_song(db, r"C:\Users\uv\Downloads\Peter Bjorn And John - Young Folks.ogg", "Young Folks", "Peter Bjorn & John", album_id)
+    """

@@ -348,9 +348,6 @@ class AudioClient:
         else:
             # Outside cache bounds: fall back to server
             print("-> Seeking from server (outside cache range)")
-            with self.played_time.get_lock():
-                self.played_time.value = seeked
-                print("   played_time set to:", self.played_time.value)
             if hasattr(self, 'playback_p'):
                 print("Stopping playback process...")
                 self.playback_p.join(timeout=0.1)
@@ -360,6 +357,10 @@ class AudioClient:
                     print("   playback process terminated")
                 else:
                     print("   playback process finished")
+            with self.played_time.get_lock():
+                self.played_time.value = seeked
+                print("   played_time set to:", self.played_time.value)
+
             self.cache.clear()
             print("   cache cleared")
             self.stop(True)

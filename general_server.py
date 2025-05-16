@@ -9,6 +9,7 @@ import difflib
 import secrets
 from datetime import datetime, timedelta
 import ssl
+import uuid
 
 import jwt
 from PIL import Image
@@ -19,6 +20,7 @@ from song import Song, Playlist, PlaybackSegment
 import recommendations
 from encryption import CryptoManager
 from MailManager import Mail
+import admin_stuff
 
 SECRET_KEY = 'very‑strong‑secret-key'
 THRESHOLD = 5
@@ -356,6 +358,73 @@ class StopifyServer:
             return b'OK'
         return b'NO'
 
+    def handle_upls(self, data: bytes, payload: dict):
+        """
+        UPLS – upload song:
+        data    =  name~author~album_id~song_file_b64
+        """
+        _, song_name, author, album_id, song_file_b64 = data.split(b'~')
+
+        if not self.db.album_exists(album_id):
+            return b'error, album does not exist'
+
+        tmp_path = f"tmp/{uuid.uuid4()}.ogg"
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(base64.b64decode(song_file_b64))
+
+            admin_stuff.create_song(self.db, tmp_path, song_name, author, album_id)
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return b'OK'
+
+        except Exception as e:
+            print(f"Error uploading song: {e}")
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return b'NO'
+
+    def handle_upla(self, data: bytes, payload: dict):
+        """
+        UPLA – upload album:
+        data    = name~author~imageb64
+        """
+        _, name, author, imageb64 = data.split(b'~')
+
+        ext = ".jpg"
+        tmp_path = f"tmp/{uuid.uuid4()}{ext}"
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(base64.b64decode(imageb64))
+
+            admin_stuff.create_album(self.db, tmp_path, name, author)
+
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+            return b'OK'
+
+        except Exception as e:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return b'NO'
+
+    def handle_geta(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        try:
+            all_albums = self.db.get_albums_ids_names()
+            msg = []
+            for album_id, name in all_albums:
+                with open(f'covers/{album_id}.jpg', 'rb') as f:
+                    cover = f.read()
+                coverb64 = base64.b64encode(cover)
+                msg.append((album_id, name, coverb64))
+            return pickle.dumps(msg)
+        except Exception as e:
+            print(f"Error getting albums: {e}")
+            return b'NO'
+
     def get_playlist(self,dict):
         print('getting playlist', dict)
         pid = dict['id']
@@ -392,10 +461,14 @@ class StopifyServer:
                    "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis,
                    "USSS": self.handle_usss, "FOLW": self.handle_folw, "UNFL": self.handle_unfl,
                    "FLWS": self.handle_flws, "PRFL": self.handle_prfl, "RSFP": self.handle_rsfp}
+        admin_actions = {"UPLS": self.handle_upls, "UPLA": self.handle_upla, "GETA": self.handle_geta}
         if cmd in actions:
             response = actions[cmd](data, payload)
+        elif cmd in admin_actions and self.db.is_admin(payload['user']):
+            response = admin_actions[cmd](data, payload)
         else:
             response = b'invalid command'
+
         return response
 
     def handle_client(self, client_socket, client_id, addr):
