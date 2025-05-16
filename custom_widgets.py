@@ -328,6 +328,9 @@ class ToolTip(BasePopup):
         super().__init__(widget)
         self.text = text
 
+        self.widget.bind("<Enter>", lambda e: self.show())
+        self.widget.bind("<Leave>", lambda e: self.hide())
+
     def show(self, event=None):
         if self.popup or not self.text: return
         x, y, _, _ = self.widget.bbox("insert") if self.widget.bbox("insert") else (0,0,0,0)
@@ -340,9 +343,6 @@ class ToolTip(BasePopup):
                  background="#aaaaaa", relief=tk.SOLID, borderwidth=1,
                  font=("tahoma", "8", "normal")).pack(ipadx=1)
 
-    def __post_init__(self):
-        self.widget.bind("<Enter>", lambda e: self.show())
-        self.widget.bind("<Leave>", lambda e: self.hide())
 
 
 # Example usage remains the same
