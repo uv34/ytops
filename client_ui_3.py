@@ -84,7 +84,7 @@ class AudioClientApp(ctk.CTk):
                                            , hover_color=self.primary_ui)
         self.prev_button.grid(row=4, column=1, sticky='e', padx=5)
 
-        self.pause_button = ctk.CTkButton(self, text="⏸︎", command=self.controller.pause_stream, state=ctk.DISABLED, width=15, height=40,
+        self.pause_button = ctk.CTkButton(self, text="⏸︎", command=self.pause, state=ctk.DISABLED, width=15, height=40,
                                            fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
                                            , hover_color=self.primary_ui, text_color_disabled=self.second_text)
         self.pause_button.grid(row=4, column=2, sticky='', padx=5)
@@ -98,6 +98,13 @@ class AudioClientApp(ctk.CTk):
                                            fg_color=self.background, text_color=self.prime_text, font=("Nunito", 12)
                                            , hover_color=self.primary_ui)
         self.toggle_button.grid(row=4, column=4, sticky='w', padx=5)
+
+    def pause(self):
+        self.controller.pause_stream()
+        if self.pause_button.cget('text') == "⏸︎":
+            self.after(0, lambda: self.pause_button.configure(text="▶"))
+        else:
+            self.after(0, lambda: self.pause_button.configure(text="⏸︎"))
 
     def on_close(self):
         if self.controller:
@@ -146,6 +153,10 @@ class AudioClientApp(ctk.CTk):
         self.search_entry.pack(side="left", fill="both", expand=True, padx=(8, 0))
         self.search_entry.bind("<Return>", self.search_songs)
 
+        self.refresh_button = ctk.CTkButton(parent, text="↺", command=lambda: threading.Thread(target=self.fetch_and_display, daemon=True).start(), width=20,
+                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 24)
+                                           , hover_color=self.primary_ui)
+        self.refresh_button.grid(row=0, column=1, sticky="e")
         # the icon-button on the right
         self.icon_btn = ctk.CTkButton(self.search_frame,
                                  text="🔍",
@@ -506,9 +517,11 @@ class AudioClientApp(ctk.CTk):
 
     def disable_pause_button(self):
         self.after(0, lambda: self.pause_button.configure(state=tk.DISABLED))
+        self.after(0, lambda: self.pause_button.configure(text="▶"))
 
     def enable_pause_button(self):
         self.after(0, lambda: self.pause_button.configure(state=tk.NORMAL))
+        self.after(0, lambda: self.pause_button.configure(text="⏸︎"))
 
     def click_playlist_frame(self, event):
         MyPlaylistInfoFrame(self, event.widget.playlist)
