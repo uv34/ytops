@@ -81,7 +81,13 @@ class PlaybackController:
         print('logout')
         self.stream_thread = None
         self.client = None
-        self.gen_socket.close()
+        self.gen_socket.send(protocol.create_msg("EXIT", self.token.encode(), self.key))
+        try:
+            self.gen_socket.unwrap()  # Send close notify and shut down SSL
+        except Exception as e:
+            print(f"Error during unwrap: {e}")
+        finally:
+            self.gen_socket.close()
 
     def play_playlist(self, p):
         def _real_play(p):
@@ -287,6 +293,7 @@ class PlaybackController:
         self.pause_disable_callback()
         self.stream_thread = None
         self.client = None
+        self.gen_socket.send(protocol.create_msg("EXIT", self.token.encode(), self.key))
         try:
             self.gen_socket.unwrap()  # Attempt to send SSL closure alert
             print("General socket unwrapped")

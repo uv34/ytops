@@ -536,8 +536,12 @@ class StopifyServer:
                     response = self.handle_cmd(payload, cmd, data)
                     print('response:', response)
                     if response is not None:
-                        msg = protocol.create_msg(cmd, response, shared_key)
-                        client_socket.send(msg)
+                        try:
+                            msg = protocol.create_msg(cmd, response, shared_key)
+                            client_socket.send(msg)
+                        except ssl.SSLZeroReturnError:
+                            print(f"Client {client_id} disconnected unexpectedly.")
+                            break
                 else:
                     print('user not verified')
                     self.db.print_users()
@@ -548,8 +552,15 @@ class StopifyServer:
             """except Exception as e:
                 print(f'Error: {e}')
                 break"""
-        del self.client_users[client_socket]
-        self.threads.remove(threading.current_thread())
+
+        try:
+            client_socket.unwrap()  # Responds to client's "close notify"
+        except Exception as e:
+            print(f"Error during unwrap: {e}")
+        finally:
+            client_socket.close()  # Clean up after shutdown
+            del self.client_users[client_socket]
+            self.threads.remove(threading.current_thread())
 
     def run(self):
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
