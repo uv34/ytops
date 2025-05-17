@@ -444,14 +444,16 @@ class AudioClientApp(ctk.CTk):
         top_bar = ctk.CTkFrame(self.social_canvas, fg_color=self.cget("fg_color"))
         top_bar.pack(fill="x", pady=(0, 5))
 
-        user_label = ctk.CTkLabel(
+        user_label = tk.Label(
             top_bar,
-            fg_color=self.cget("fg_color"),
-            text_color=self.prime_text,
+            bg=self.cget("fg_color"),
+            fg=self.prime_text,
             text=f"username: {self.username}",
             anchor="w"
         )
         user_label.pack(side="left", padx=(0, 10))
+        user_label.username = self.username
+        user_label.bind("<Button-1>", self._display_soc)
 
         self.logout_button = ctk.CTkButton(
             top_bar,
@@ -474,7 +476,7 @@ class AudioClientApp(ctk.CTk):
 
         self.follow_button = ctk.CTkButton(
             self.social_canvas,
-            text="Follow",
+            text="Follow Someone New",
             command= lambda: FollowFrame(self),
             fg_color=self.background,
             text_color=self.prime_text,
@@ -530,7 +532,9 @@ class AudioClientApp(ctk.CTk):
                 label=playlist.name,
                 command=lambda x=playlist: self.controller.add_to_playlist(event.widget.song, x)
             )
-        menu.add_cascade(label="Add to Playlist", menu=playlist_menu)
+        menu.add_cascade(label="Add To Playlist", menu=playlist_menu)
+        menu.add_cascade(label="Add To Queue", command=lambda: self.controller.add_song_to_queue(event))
+        menu.add_cascade(label="Play Next", command=lambda: self.controller.add_song_to_next(event))
         menu.post(event.x_root, event.y_root)
 
     def display_songs_horizontaly(self, songs, inner_frame):

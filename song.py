@@ -59,6 +59,10 @@ class SongQueue:
         print('------------add song------------')
         self.queue.append(song)
 
+    def add_song_to_next(self, song):
+        print('------------add song to next------------')
+        self.queue.insert(0, song)
+
     def remove_song(self, song):
         if song in self.queue:
             self.queue.remove(song)

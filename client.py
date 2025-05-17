@@ -48,7 +48,17 @@ class PlaybackController:
     def click_song_frame(self, event):
         """self.stop_stream()
         self.start_after_stop(event.widget.song_id)"""
+        self.play_song(event.widget.song)
+
+    def add_song_to_queue(self, event):
         self.song_queue.add_song(event.widget.song)
+        if not self.stream_thread:
+            self.stop_stream()
+            self.song_queue.next()
+            self.start_after_stop(self.song_queue.current_song.song_id)
+
+    def add_song_to_next(self, event):
+        self.song_queue.add_song_to_next(event.widget.song)
         if not self.stream_thread:
             self.stop_stream()
             self.song_queue.next()
@@ -89,6 +99,19 @@ class PlaybackController:
         thread = threading.Thread(target=_real_play, args=(p,), daemon=True)
         thread.start()
 
+    def play_song(self, s):
+        def _real_play(s):
+            self.stop_stream()
+            self._wait_for_stop()
+            self.song_queue.clear()
+            self.song_queue.add_song(s)
+            self.skipped = True
+            self.song_queue.next()
+
+            self.start_stream(self.song_queue.current_song.song_id)
+
+        thread = threading.Thread(target=_real_play, args=(s,), daemon=True)
+        thread.start()
     def _wait_for_stop(self):
         if self.stream_thread and self.stream_thread.is_alive():
             timer = threading.Timer(0.1, self._wait_for_stop)
