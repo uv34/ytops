@@ -401,7 +401,6 @@ class AudioClient:
         self.done_flag.set()
         self.in_song = False
         self.running = False
-        sys.exit(0)
         print('out of exit')
 
     def real_stop(self):

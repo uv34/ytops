@@ -110,9 +110,8 @@ class AudioClientApp(ctk.CTk):
         if self.controller:
             self.controller.exit()
             print("exiting")
-        self.destroy()
         self.quit()
-        sys.exit(0)
+        self.destroy()
 
     def make_middle_frame(self):
         self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color=self.background, command=self.on_tab_change)
