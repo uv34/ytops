@@ -74,10 +74,14 @@ class OggServer:
         print(f"Server listening on {self.host}:{self.port}...")
         while True:
             conn, addr = serv_sock.accept()
-            ssl_conn = context.wrap_socket(conn, server_side=True, do_handshake_on_connect=True)
-            print(f"Connection from {addr}")
-            self.stop_events[ssl_conn] = threading.Event()
-            threading.Thread(target=self.handle_client, args=(ssl_conn,), daemon=True).start()
+            try:
+                ssl_conn = context.wrap_socket(conn, server_side=True, do_handshake_on_connect=True)
+                print(f"Connection from {addr}")
+                self.stop_events[ssl_conn] = threading.Event()
+                threading.Thread(target=self.handle_client, args=(ssl_conn,), daemon=True).start()
+            except ssl.SSLError as e:
+                print(f"SSL error: {e}")
+                conn.close()
 
     def handle_client(self, conn):
         """

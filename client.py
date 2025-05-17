@@ -79,8 +79,6 @@ class PlaybackController:
         self.active = False
         self.stop_stream()
         print('logout')
-        self._wait_for_stop()
-        print('logout')
         self.stream_thread = None
         self.client = None
         self.gen_socket.close()
@@ -88,7 +86,6 @@ class PlaybackController:
     def play_playlist(self, p):
         def _real_play(p):
             self.stop_stream()
-            self._wait_for_stop()
             self.song_queue.clear()
             for song in p.songs:
                 self.song_queue.add_song(song)
@@ -287,8 +284,6 @@ class PlaybackController:
         if self.client:
             self.client.exit()
             print('logout')
-            self._wait_for_stop()
-            print('logout')
         self.pause_disable_callback()
         self.stream_thread = None
         self.client = None
@@ -305,6 +300,7 @@ class PlaybackController:
         finally:
             self.gen_socket.close()
             print("General socket closed")
+            sys.exit(0)
 
     def start_button(self):
         self.skipped = True

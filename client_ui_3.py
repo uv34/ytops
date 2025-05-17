@@ -114,7 +114,7 @@ class AudioClientApp(ctk.CTk):
         self.destroy()
 
     def make_middle_frame(self):
-        self.tab_view = ctk.CTkTabview(self, width=380, height=240, fg_color=self.background, command=self.on_tab_change)
+        self.tab_view = ctk.CTkTabview(self, width=380, height=350, fg_color=self.background, command=self.on_tab_change)
         self.tab_view.grid(row=2, column=0, sticky="ew", padx=5, pady=5, columnspan=6)
         self.tab_view.add('songs')
         self.tab_view.tab('songs').configure(fg_color=self.tab_view.cget("fg_color"))
@@ -138,6 +138,10 @@ class AudioClientApp(ctk.CTk):
         elif self.tab_view.get() == "social":
             self._update_following()
 
+    def _refresh(self):
+        self.recommendations_label.configure(text="Recommendations")
+        threading.Thread(target=self.fetch_and_display, daemon=True).start()
+
     def _build_songs_tab(self, parent):
         self.search_frame = ctk.CTkFrame(parent,
                                     corner_radius=8,
@@ -152,7 +156,7 @@ class AudioClientApp(ctk.CTk):
         self.search_entry.pack(side="left", fill="both", expand=True, padx=(8, 0))
         self.search_entry.bind("<Return>", self.search_songs)
 
-        self.refresh_button = ctk.CTkButton(parent, text="↺", command=lambda: threading.Thread(target=self.fetch_and_display, daemon=True).start(), width=20,
+        self.refresh_button = ctk.CTkButton(parent, text="↺", command=self._refresh, width=20,
                                            fg_color=self.background, text_color=self.prime_text, font=("Nunito", 24)
                                            , hover_color=self.primary_ui)
         self.refresh_button.grid(row=0, column=1, sticky="e")
@@ -165,14 +169,54 @@ class AudioClientApp(ctk.CTk):
                                  command=lambda: self.search_songs(None))
         self.icon_btn.pack(side="right", padx=4)
 
-        self.canvas = ctk.CTkScrollableFrame(parent, height=100, width=360, orientation="horizontal"
-                                             , fg_color=parent.cget("fg_color"))
-        self.canvas.grid(row=1, column=0, sticky="nsew", pady=10, columnspan=2)
+        self.recommendations_label = ctk.CTkLabel(
+            parent,
+            text="Recommendations",
+            font=("Nunito", 16),
+            anchor="w",
+            text_color=self.prime_text
+        )
+        self.recommendations_label.grid(
+            row=1, column=0,
+            sticky="w",
+            padx=10, pady=(10, 0)
+        )
 
-        # Second ca nvas and its scrollbar
-        self.canvas2 = ctk.CTkScrollableFrame(parent, height=100, orientation="horizontal"
-                                               , fg_color=parent.cget("fg_color"))
-        self.canvas2.grid(row=2, column=0, sticky="nsew", pady=10, columnspan=2)
+        # === First canvas: recommendations ===
+        self.canvas = ctk.CTkScrollableFrame(
+            parent,
+            height=100, width=360, orientation="horizontal",
+            fg_color=parent.cget("fg_color")
+        )
+        self.canvas.grid(
+            row=2, column=0,
+            sticky="nsew", pady=5, columnspan=2
+        )
+
+        # === Playlists title ===
+        self.playlists_label = ctk.CTkLabel(
+            parent,
+            text="Playlists",
+            font=("Nunito", 16),
+            anchor="w",
+            text_color=self.prime_text
+        )
+        self.playlists_label.grid(
+            row=3, column=0,
+            sticky="w",
+            padx=10, pady=(10, 0)
+        )
+
+        # === Second canvas: playlists ===
+        self.canvas2 = ctk.CTkScrollableFrame(
+            parent,
+            height=100, orientation="horizontal",
+            fg_color=parent.cget("fg_color")
+        )
+        self.canvas2.grid(
+            row=4, column=0,
+            sticky="nsew", pady=5, columnspan=2
+        )
 
     def _add_song_row(self, song):
         # Container frame for a single song
@@ -199,7 +243,7 @@ class AudioClientApp(ctk.CTk):
         text_label.pack(side="left", fill="x", expand=True)
 
     def _build_queue_tab(self, parent):
-        self.queue_frame = ctk.CTkScrollableFrame(parent, height=294, width=354, orientation="vertical"
+        self.queue_frame = ctk.CTkScrollableFrame(parent, height=350, width=354, orientation="vertical"
                                                    , fg_color=parent.cget("fg_color"))
         self.queue_frame.covers = []
         self.queue_frame.grid(row=0, column=0, sticky="e", pady=10, columnspan=2)
@@ -282,11 +326,11 @@ class AudioClientApp(ctk.CTk):
         self.admin_frame = ctk.CTkScrollableFrame(
             parent,
             width=334,
-            height=294,
+            height=350,
             orientation="vertical",
             fg_color=parent.cget("fg_color")
         )
-        self.admin_frame.pack()
+        self.admin_frame.pack(padx=10, pady=10)
         song_frame = tk.LabelFrame(self.admin_frame, text="Upload Song", padx=10, pady=10)
         song_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
@@ -445,7 +489,7 @@ class AudioClientApp(ctk.CTk):
         self.social_canvas = ctk.CTkScrollableFrame(
             parent,
             width=334,
-            height=294,
+            height=350,
             orientation="vertical",
             fg_color=parent.cget("fg_color")
         )
@@ -513,6 +557,7 @@ class AudioClientApp(ctk.CTk):
             if songs:
                 print('displaying songs', songs)
                 self.display_songs_horizontaly(songs, self.canvas)
+                self.recommendations_label.configure(text="Search Results")
 
     def disable_pause_button(self):
         self.after(0, lambda: self.pause_button.configure(state=tk.DISABLED))
@@ -658,7 +703,7 @@ class AudioClientApp(ctk.CTk):
             self.tab_view.grid_remove()
             self.geometry("400x160")
         else:
-            self.geometry("400x530")
+            self.geometry("400x600")
             self.tab_view.grid()
 
             threading.Thread(target=self.fetch_and_display, daemon=True).start()
