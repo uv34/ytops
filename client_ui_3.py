@@ -39,7 +39,7 @@ class AudioClientApp(ctk.CTk):
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
                                              , self.draw_slider_callback, self.update_playlists, self.update_when_follow
-                                             , key)
+                                             , key, self.messagebox_callback)
 
         self.song_info_label = ctk.CTkLabel(self, text="song name\n author", text_color=self.prime_text, font=("Nunito", 12))
         self.song_info_label.grid(row=0, rowspan=2, column=1, columnspan=3, sticky='ew', padx=5, pady=5)
@@ -758,6 +758,9 @@ class AudioClientApp(ctk.CTk):
 
     def update_when_follow(self, user):
         self._add_user_to_following(user, len(self.following_frame.winfo_children()))
+
+    def messagebox_callback(self, title, message):
+        self.after(0, lambda: messagebox.showinfo(title, message))
 
 
 

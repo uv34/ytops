@@ -12,7 +12,7 @@ from song import *
 class PlaybackController:
     def __init__(self, gen_sock, token, pause_disable_callback, pause_enable_callback, on_playback_callback
                  , update_song_callback, update_cover_callback, update_slider_callback, update_playlist_callback
-                 , add_user_callback, key):
+                 , add_user_callback, key, messagebox_callback):
         self.token = token
         self.gen_socket = gen_sock
         self.client = None
@@ -35,6 +35,7 @@ class PlaybackController:
         self.update_slider_callback = update_slider_callback
         self.update_playlist_callback = update_playlist_callback
         self.add_user_callback = add_user_callback
+        self.messagebox_callback = messagebox_callback
 
         self.total_time = 1.0
         self.downloaded_time = 0.0
@@ -60,6 +61,8 @@ class PlaybackController:
             msg = protocol.create_msg(cmd, f"{self.token}~{msg}".encode(), self.key)
             self.gen_socket.send(msg)
             cmd, data = protocol.get_msg(self.gen_socket, self.key)
+            if cmd == 'VERF':
+                self.update_status('verify', 'needs to verify - check your mail')
             return cmd, data
 
     def logout(self):
@@ -250,12 +253,10 @@ class PlaybackController:
         if self.client:
             self.client.pause()
             new_state = "Paused" if not self.client.playing else "Resumed"
-            self.update_status(new_state)
 
     def stop_stream(self):
         if self.client:
             self.client.stop()
-        self.update_status("Stopped")
         self.pause_disable_callback()
 
     def exit(self):
@@ -340,15 +341,11 @@ class PlaybackController:
 
         def run():
             try:
-                self.update_status("Connecting to server...")
                 self.client.ask_for_song(song_id, time, self.token)
-                self.update_status(f"Requesting {song_id}, time={time}")
                 self.client.receive_stream()
-                self.update_status("Stream ended.")
                 self.client = None
             except Exception as e:
                 print("Error", str(e))
-                self.update_status(f"Error: {e}")
                 print(f"Error")
             finally:
                 print(f'skipped: {self.skipped} ')
@@ -371,7 +368,6 @@ class PlaybackController:
         self.stream_thread = threading.Thread(target=run, daemon=True)
         self.stream_thread.start()
 
-        self.update_status("Attempting to stream...")
         self.client.set_volume(self.volume)
         self.pause_enable_callback()
         # Reset times
@@ -392,6 +388,6 @@ class PlaybackController:
         check_metadata()
 
     # --- util ---
-    def update_status(self, status):
+    def update_status(self, title, status):
         self.status = status
-        print('current status:', status)
+        self.messagebox_callback(title, status)

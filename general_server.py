@@ -527,7 +527,7 @@ class StopifyServer:
                 else:
                     print('user not verified')
                     self.db.print_users()
-                    self.send_msg(client_socket, 'ERR ', b'not verified', shared_key)
+                    self.send_msg(client_socket, 'VERF', b'not verified', shared_key)
             else:
                 print('invalid token')
                 self.send_msg(client_socket, 'ERR ', b'invalid token', shared_key)
