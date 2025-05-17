@@ -2,6 +2,7 @@ import pickle
 import sys
 import threading
 import ssl
+import socket
 
 import protocol
 from audio_client_v2 import AudioClient
@@ -294,6 +295,7 @@ class PlaybackController:
         self.stream_thread = None
         self.client = None
         self.gen_socket.send(protocol.create_msg("EXIT", self.token.encode(), self.key))
+        self.gen_socket.shutdown(socket.SHUT_RDWR)
         try:
             self.gen_socket.unwrap()  # Attempt to send SSL closure alert
             print("General socket unwrapped")

@@ -409,6 +409,7 @@ class AudioClient:
             self.playing.value = False
         self.cache.clear()
         if self.sock:
+            self.sock.shutdown(socket.SHUT_RDWR)
             try:
                 self.sock.unwrap()
             except Exception as e:
