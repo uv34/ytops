@@ -106,22 +106,69 @@ def handle_client(client_conn, client_addr):
                 token = secrets.token_urlsafe(32)
                 expiry = datetime.utcnow() + timedelta(hours=24)
                 db.update_user_token(user['id'], token, expiry)
-                m = Mail('Stopify - Email Verification', """Welcome to Stopify! To activate your account, please click the link below:
-                            https://localhost/verify-email?token=""" + token + """
-
-                            This link expires in 24 hours. If you didn’t sign up, just ignore this message.
-
-                            Thanks,
-                            The Stopify Team""", user['email'])
+                m = Mail('Stopify - Email Verification', """<!DOCTYPE html>
+                                <html lang="en">
+                                <head>
+                                  <meta charset="UTF-8">
+                                  <title>Stopify – Email Verification</title>
+                                </head>
+                                <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; margin: 20px;">
+                                <center>
+                                  <h2 style="margin-top: 0;">Welcome to Stopify!</h2>
+                                  <p>To activate your account, please click the link below:</p>
+                                  <p><a href='https://localhost/verify-email?token=""" + token + """' style="color: #1a73e8; text-decoration: none;">Verify your email</a></p>
+                                  <p style="font-size: 0.9em; color: #666;">
+                                    This link expires in 24 hours. If you didn’t sign up, you can ignore this message.
+                                  </p>
+                                  <p>Thanks,<br>The Stopify Team</p>
+                                </center>
+                                </body>
+                                </html>""", user["email"])
                 m.send()
             else:
                 db.verify_user(user['id'])
                 html = """
-                    <html>
-                      <head><title>Email Verified</title></head>
-                      <body>
+                    <html lang="en">
+                    <head>
+                      <meta charset="UTF-8">
+                      <title>Email Verified</title>
+                      <style>
+                        body {
+                          font-family: Arial, sans-serif;
+                          background-color: #f9f9f9;
+                          color: #333;
+                          display: flex;
+                          flex-direction: column;
+                          align-items: center;
+                          justify-content: center;
+                          height: 100vh;
+                          margin: 0;
+                        }
+                        .container {
+                          background: #fff;
+                          padding: 40px 60px;
+                          border-radius: 8px;
+                          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                          text-align: center;
+                        }
+                        h1 {
+                          margin: 0 0 20px;
+                          font-size: 2em;
+                          color: #4CAF50;
+                        }
+                        p {
+                          margin: 0;
+                          font-size: 1em;
+                          color: #666;
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="container">
                         <h1>Email verified!</h1>
-                      </body>
+                        <p>Please refresh the app to start using your account.</p>
+                      </div>
+                    </body>
                     </html>
                     """
                 send_html(client_conn, 200, html)

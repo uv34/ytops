@@ -355,7 +355,7 @@ class AudioClientApp(ctk.CTk):
 
     def _choose_cover_file(self):
         path = filedialog.askopenfilename(
-            title="Select Cover Image", filetypes=[("Image files", "*.jpg *.jpeg *.png"), ("All files", "*")]
+            title="Select Cover Image", filetypes=[("Image files", "*.jpg *.jpeg"), ("All files", "*")]
         )
         if path:
             self.cover_file = path

@@ -5,14 +5,14 @@ from email.mime.text import MIMEText
 class Mail:
     def __init__(self, subject, body, recipients):
         self.subject = subject
-        self.body = body
+        self.html_body = body
         self.recipient = recipients
         self.sender = 'stopify5169@gmail.com'
         self.PASSWORD = 'iprb kdok mulc ilce'
 
 
     def send(self):
-        msg = MIMEText(self.body)
+        msg = MIMEText(self.html_body, 'html')
         msg['Subject'] = self.subject
         msg['From'] = self.sender
         msg['To'] = ', '.join(self.recipient)
@@ -25,3 +25,10 @@ class Mail:
 if __name__ == "__main__":
     mmail = Mail('omer', 'swimmer', 'uvlevy100@gmail.com')
     mmail.send()
+
+
+
+
+
+
+

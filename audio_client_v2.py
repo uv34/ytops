@@ -402,6 +402,7 @@ class AudioClient:
         self.in_song = False
         self.running = False
         sys.exit(0)
+        print('out of exit')
 
     def real_stop(self):
         print("real Stopping audio streaming...")
@@ -447,6 +448,7 @@ class AudioClient:
             pass
         if self._queue_checker_running:
             self._queue_checker_timer = threading.Timer(0.02, self._check_queue)
+            self._queue_checker_timer.daemon = True
             self._queue_checker_timer.start()
 
     def _start_queue_checker(self):

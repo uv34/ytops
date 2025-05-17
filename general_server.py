@@ -154,13 +154,25 @@ class StopifyServer:
         id, status = self.register_user(username, email, hashed_password, token, expiry)
         if status != '0':
             self.client_users[client_socket] = User(id, username, status, False)
-            m = Mail('Stopify - Email Verification', """Welcome to Stopify! To activate your account, please click the link below:
-            https://localhost/verify-email?token=""" + token + """
-            
-            This link expires in 24 hours. If you didn’t sign up, just ignore this message.
-            
-            Thanks,
-            The Stopify Team""", email)
+            html = """<!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <title>Stopify – Email Verification</title>
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333; margin: 20px;">
+            <center>
+              <h2 style="margin-top: 0;">Welcome to Stopify!</h2>
+              <p>To activate your account, please click the link below:</p>
+              <p><a href='https://localhost/verify-email?token=""" + token + """' style="color: #1a73e8; text-decoration: none;">Verify your email</a></p>
+              <p style="font-size: 0.9em; color: #666;">
+                This link expires in 24 hours. If you didn’t sign up, you can ignore this message.
+              </p>
+              <p>Thanks,<br>The Stopify Team</p>
+            </center>
+            </body>
+            </html>"""
+            m = Mail('Stopify - Email Verification',html , email)
             m.send()
             token = generate_token(id)
             return True, b'login successful~' + token.encode()
@@ -209,7 +221,7 @@ class StopifyServer:
         image_bytes = base64.b64decode(imageb64)
         img_io_bytes = io.BytesIO(image_bytes)
         if not (image_bytes.startswith(b'\xff\xd8') and image_bytes.endswith(b'\xff\xd9')):
-            return b'NOT Valid jpg'
+            return b'NO'
         playlist_id = self.db.create_playlist(user_id, name.decode())
         img = Image.open(img_io_bytes)
         img_resized = img.resize((64, 64))
@@ -390,12 +402,14 @@ class StopifyServer:
         data    = name~author~imageb64
         """
         _, name, author, imageb64 = data.split(b'~')
-
+        image_bytes = base64.b64decode(imageb64)
+        if not (image_bytes.startswith(b'\xff\xd8') and image_bytes.endswith(b'\xff\xd9')):
+            return b'NO'
         ext = ".jpg"
         tmp_path = f"tmp/{uuid.uuid4()}{ext}"
         try:
             with open(tmp_path, "wb") as f:
-                f.write(base64.b64decode(imageb64))
+                f.write(image_bytes)
 
             admin_stuff.create_album(self.db, tmp_path, name, author)
 

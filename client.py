@@ -92,7 +92,8 @@ class PlaybackController:
             self.song_queue.clear()
             for song in p.songs:
                 self.song_queue.add_song(song)
-            self.skipped = True
+            if self.stream_thread and self.stream_thread.is_alive():
+                self.skipped = True
             self.song_queue.next()
 
             self.start_stream(self.song_queue.current_song.song_id)
@@ -105,7 +106,6 @@ class PlaybackController:
             self._wait_for_stop()
             self.song_queue.clear()
             self.song_queue.add_song(s)
-            self.skipped = True
             self.song_queue.next()
 
             self.start_stream(self.song_queue.current_song.song_id)
