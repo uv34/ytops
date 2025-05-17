@@ -307,7 +307,6 @@ class PlaybackController:
         finally:
             self.gen_socket.close()
             print("General socket closed")
-            sys.exit(0)
 
     def start_button(self):
         self.skipped = True

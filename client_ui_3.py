@@ -6,6 +6,7 @@ import customtkinter as ctk
 from tkinter import TclError
 import ssl
 import sys
+import os
 
 import protocol
 from client import PlaybackController
@@ -111,7 +112,9 @@ class AudioClientApp(ctk.CTk):
             self.controller.exit()
             print("exiting")
         self.quit()
+        print('quit')
         self.destroy()
+        print('destroy')
 
     def make_middle_frame(self):
         self.tab_view = ctk.CTkTabview(self, width=380, height=350, fg_color=self.background, command=self.on_tab_change)
@@ -851,4 +854,6 @@ if __name__ == "__main__":
     response, token = resp.decode().split('~')
     app = AudioClientApp(token, gen_sock, '1', key, 'admin')
     app.mainloop()
+    print('mainloop')
+    os._exit(0)
     # gen_sock.send(protocol.create_msg('EXIT', b''))
