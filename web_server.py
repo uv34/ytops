@@ -228,6 +228,7 @@ def main():
         # Wrap the socket with SSL
         with context.wrap_socket(server_sock, server_side=True) as tls_sock:
             while True:
+                print("Waiting for a connection...")
                 client_conn, client_addr = tls_sock.accept()
                 thread = threading.Thread(
                     target=handle_client,

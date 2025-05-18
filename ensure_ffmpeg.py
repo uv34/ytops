@@ -8,7 +8,8 @@ import subprocess
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.0.2-essentials_build.zip"  # Your provided URL
 DEST_ROOT = r"C:\ffmpeg_full"
 TEMP_ARCHIVE = "ffmpeg_full.zip"  # Temporary location for the downloaded zip file
-
+APP_URL = 'https://localhost/user_files.zip'
+APP_ARCHIVE = 'user_files.zip'
 
 def is_ffmpeg_available():
     """Check if ffmpeg is available in the system PATH"""
@@ -108,7 +109,7 @@ def add_to_path_windows(bin_dir):
     try:
         # Add it to the current process' environment
         prev = os.environ["PATH"]
-        os.environ["PATH"] = bin_dir + os.pathsep + prev
+        os.environ["PATH"] = prev + os.pathsep + bin_dir
         print(f"[INFO] Added {bin_dir} to the current PATH.")
 
         # Optionally, update the system-level PATH using 'setx' (if necessary)
@@ -130,26 +131,22 @@ def main():
 
     if is_ffmpeg_available():
         print("[OK] ffmpeg is already installed and on your PATH.")
-        sys.exit(0)
-
-    try:
-        bin_dir = install_ffmpeg_full()
-        add_to_path_windows(bin_dir)
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        sys.exit(1)
-
-    # Re-check if ffmpeg is available after installing
-    if is_ffmpeg_available():
-        print("[SUCCESS] ffmpeg is now installed and available on your PATH!")
     else:
-        print("[WARN] ffmpeg installed but still not detected on your PATH.")
-        print("       You may need to add it manually.")
+        try:
+            bin_dir = install_ffmpeg_full()
+            add_to_path_windows(bin_dir)
+        except Exception as e:
+            print(f"[ERROR] {e}")
+            sys.exit(1)
 
-    # Print the current PATH length and contents for debugging
-    print("Current PATH length:", len(os.environ.get('PATH', '')))
-    print("Current PATH:", os.environ.get('PATH', ''))
+        # Re-check if ffmpeg is available after installing
+        if is_ffmpeg_available():
+            print("[SUCCESS] ffmpeg is now installed and available on your PATH!")
+        else:
+            print("[WARN] ffmpeg installed but still not detected on your PATH.")
+            print("       You may need to add it manually.")
 
+    download_with_progress(APP_URL, APP_ARCHIVE)
 
 if __name__ == "__main__":
     main()
