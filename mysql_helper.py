@@ -566,18 +566,23 @@ class DBController:
     def get_last_10_songs(self, username):
         cursor = self.conn.cursor(dictionary=True)
         query="""
-            SELECT *
-            FROM user_segments us
-            JOIN songs s ON us.songs_id = s.id
-            JOIN user u ON us.user_id = u.id
-            WHERE us.id IN (
-                SELECT MAX(id)
-                FROM user_segments
-                WHERE user_id = u.id
-                GROUP BY songs_id
-            )
-            AND u.username = %s
-            ORDER BY us.time DESC
+            SELECT
+              s.*,
+              latest.last_time
+            FROM (
+              -- find each song’s most‐recent play time for this user
+              SELECT
+                us.songs_id,
+                MAX(us.time) AS last_time
+              FROM user_segments us
+              JOIN `user` u
+                ON us.user_id = u.id
+              WHERE u.username = %s
+              GROUP BY us.songs_id
+            ) AS latest
+            JOIN songs s
+              ON s.id = latest.songs_id
+            ORDER BY latest.last_time DESC
             LIMIT 10;
             """
         cursor.execute(query, (username,))
