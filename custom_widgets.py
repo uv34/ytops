@@ -7,6 +7,41 @@ import base64
 import io
 from datetime import datetime
 from song import *
+import math
+
+
+class HexagonRadar(tk.Canvas):
+    def __init__(self, master, size=200, stats=None, labels=None, **kw):
+        super().__init__(master, width=size, height=size,  **kw)
+        self.size = size
+        self.stats = stats or [0, 0, 0, 0, 0, 0]
+        # labels: list of six strings
+        self.labels = labels or ["ACS","DNC","ENR","INS","LIV","SPC"]
+        self.draw_radar()
+
+    def draw_radar(self):
+        cx = cy = self.size/2
+        radius = self.size*0.4
+        angles = [math.radians(90 - i*60) for i in range(6)]
+        # outer hexagon points
+        outer = [(cx + radius*math.cos(a), cy - radius*math.sin(a)) for a in angles]
+        # inner polygon points (scaled by stats)
+        inner = [(cx + radius*self.stats[i]*math.cos(a),
+                  cy - radius*self.stats[i]*math.sin(a))
+                 for i,a in enumerate(angles)]
+        # draw web
+        for p in outer:
+            self.create_line(cx, cy, p[0], p[1], fill="#444")
+        self.create_polygon(outer, outline="#888", fill="", width=2)
+        # draw stat area
+        self.create_polygon(inner, outline="#fc0", fill="#fc0", stipple="gray25")
+        # draw labels
+        for i,(x,y) in enumerate(outer):
+            lbl = self.labels[i]
+            # push label slightly outward
+            lx = cx + (radius+15)*math.cos(angles[i])
+            ly = cy - (radius+15)*math.sin(angles[i])
+            self.create_text(lx, ly, text=lbl, fill="white", font=("TkDefaultFont", 10))
 
 
 class BaseFrame:
@@ -41,54 +76,93 @@ class SocialFrame(BaseFrame):
     def create_widgets(self):
         uname = self.profile_data['profile'][0][0]
         last_time = self.profile_data['profile'][0][1]
-        time_str = last_time.strftime("%Y-%m-%d %H:%M:%S") if isinstance(last_time, datetime) else str(last_time)
-
-        self.username_label = tk.Label(self.frame, text=uname, font=("Arial", 14, "bold"), fg="white", bg="#1e1e1e")
-        self.username_label.place(relx=0.5, y=20, anchor="n")
-        self.time_label = tk.Label(self.frame, text=f"Created: {time_str}", font=("Arial", 10), fg="#cccccc", bg="#1e1e1e")
-        self.time_label.place(relx=0.5, y=45, anchor="n")
-
-        # Songs list
-        self._create_list_section("Songs:", self.profile_data['songs'], 75, 95, 260, 100, lambda s: f"{s.name} — {s.author}")
-
-        # Playlists list
-        self._create_scrollable_labels(
-            title="Playlists:", items=self.profile_data['playlists'], y_title=205, y_box=225,
-            box_size=(260, 100), label_factory=lambda pl: pl.name,
-            on_click=lambda e, playlist: PlaylistInfoFrame(self.parent, playlist)
+        time_str = (
+            last_time.strftime("%Y-%m-%d %H:%M:%S")
+            if isinstance(last_time, datetime)
+            else str(last_time)
         )
 
-        # Close button
-        self.close_btn = tk.Button(self.frame, text="Close", bg="#3e3e3e", fg="white", width=12, command=self.destroy)
-        self.close_btn.place(relx=0.5, y=340, anchor="n")
+        # --- Header ---
+        tk.Label(self.frame,
+                 text=uname,
+                 font=("Arial", 14, "bold"),
+                 fg="white",
+                 bg="#1e1e1e")\
+          .place(relx=0.5, y=20, anchor="n")
+        tk.Label(self.frame,
+                 text=f"Created: {time_str}",
+                 font=("Arial", 10),
+                 fg="#cccccc",
+                 bg="#1e1e1e")\
+          .place(relx=0.5, y=45, anchor="n")
 
-    def _create_list_section(self, title, items, y_title, y_box, box_w, box_h, formatter):
-        tk.Label(self.frame, text=title, font=("Arial", 11, "underline"), fg="white", bg="#1e1e1e").place(relx=0.5, y=y_title, anchor="n")
-        box = tk.Frame(self.frame, bg="#1e1e1e")
-        box.place(relx=0.5, y=y_box, anchor="n", width=box_w, height=box_h)
+        # --- Single Scrollable Area (hexagon + lists) ---
+        scroll = ctk.CTkScrollableFrame(
+            master=self.frame,
+            width=260, height=230,
+            fg_color="#1e1e1e",
+            scrollbar_button_color="#444444",
+            scrollbar_button_hover_color="#555555"
+        )
+        scroll.place(relx=0.5, y=75, anchor="n")
 
-        lst = tk.Listbox(box, bg="#2e2e2e", fg="white", bd=0, highlightthickness=0, selectbackground="#444444")
-        lst.pack(side="left", fill="both", expand=True)
-        scroll = tk.Scrollbar(box, command=lst.yview)
-        scroll.pack(side="right", fill="y")
-        lst.config(yscrollcommand=scroll.set)
+        # --- Hexagon stats at top of scroll ---
+        stats_vals = self.profile_data['profile'][0][2:]
+        hexa = HexagonRadar(
+            scroll,
+            size=200,
+            stats=stats_vals,
+            labels=["ACS","DNC","ENR","INS","LIV","SPC"],
+            bg="#1e1e1e",
+            highlightthickness=0
+        )
+        hexa.pack(pady=(8, 16))
 
-        for item in items:
-            lst.insert("end", formatter(item))
+        # --- Songs Section ---
+        ctk.CTkLabel(master=scroll,
+                     text="Latest listens:",
+                     text_color="white",
+                     fg_color="#1e1e1e",
+                     anchor="w",
+                     font=("Arial", 11, "underline"))\
+           .pack(fill="x", padx=4, pady=(0,4))
+        for s in self.profile_data['songs']:
+            ctk.CTkLabel(master=scroll,
+                         text=f"{s.name} — {s.author}",
+                         text_color="white",
+                         fg_color="#2e2e2e",
+                         anchor="w",
+                         height=28,
+                         corner_radius=0)\
+               .pack(fill="x", padx=8, pady=2)
 
-    def _create_scrollable_labels(self, title, items, y_title, y_box, box_size, label_factory, on_click):
-        tk.Label(self.frame, text=title, font=("Arial", 11, "underline"), fg="white", bg="#1e1e1e").place(relx=0.5, y=y_title, anchor="n")
-        box = tk.Frame(self.frame, bg="#1e1e1e")
-        box.place(relx=0.5, y=y_box, anchor="n", width=box_size[0], height=box_size[1])
-        scroll_frame = ctk.CTkScrollableFrame(master=box, fg_color="#2e2e2e",
-                                              scrollbar_button_color="#444444",
-                                              scrollbar_button_hover_color="#555555")
-        scroll_frame.pack(fill="both", expand=True)
-        for it in items:
-            lbl = ctk.CTkLabel(master=scroll_frame, text=label_factory(it), text_color="white",
-                                fg_color="#2e2e2e", anchor="w", height=30, corner_radius=0)
-            lbl.pack(fill="x", padx=8, pady=4)
-            lbl.bind("<Button-1>", lambda e, playlist=it: on_click(e, playlist))
+        # --- Playlists Section ---
+        ctk.CTkLabel(master=scroll,
+                     text="Playlists:",
+                     text_color="white",
+                     fg_color="#1e1e1e",
+                     anchor="w",
+                     font=("Arial", 11, "underline"))\
+           .pack(fill="x", padx=4, pady=(12,4))
+        for pl in self.profile_data['playlists']:
+            lbl = ctk.CTkLabel(master=scroll,
+                               text=pl.name,
+                               text_color="white",
+                               fg_color="#2e2e2e",
+                               anchor="w",
+                               height=28,
+                               corner_radius=0)
+            lbl.pack(fill="x", padx=8, pady=2)
+            lbl.bind("<Button-1>",
+                     lambda e, playlist=pl: PlaylistInfoFrame(self.parent, playlist))
+
+        # --- Close Button below scroll ---
+        ctk.CTkButton(master=self.frame,
+                      text="Close",
+                      fg_color="#3e3e3e",
+                      text_color="white",
+                      width=100,
+                      command=self.destroy).place(relx=0.5, y=320, anchor="n")
 
 
 class FollowFrame(BaseFrame):
@@ -345,11 +419,17 @@ class ToolTip(BasePopup):
 
 
 
+
 # Example usage remains the same
 if __name__ == '__main__':
     root = tk.Tk()
     root.title("Playlist Info")
     root.geometry("400x400")
+    radar = HexagonRadar(root,
+                         size=200,
+                         stats=[0.8, 0.6, 0.5, 0.9, 0.7, 0.4],
+                         highlightthickness=0)
+    radar.pack(padx=20, pady=20)
     import base64
     with open('playlists/1.jpg', 'rb') as f:
         cover64b = base64.b64encode(f.read())
