@@ -439,6 +439,28 @@ class StopifyServer:
             print(f"Error getting albums: {e}")
             return b'NO'
 
+    def handle_wrpd(self, data, payload):
+        if not data.count(b'~') == 3:
+            return b'NO'
+        _, user_id, start_date, end_date = data.split(b'~')
+        txt = admin_stuff.generate_wrapped(self.db, user_id.decode(), start_date.decode(), end_date.decode())
+        try:
+            email = self.db.get_mail_by_id(user_id.decode())
+            print(txt)
+            mail = Mail('Stopify - Wrapped', txt, email)
+            mail.send()
+            print('sent wrapped', user_id.decode())
+            return b'OK'
+        except Exception as e:
+            print(f"Error generating wrapped: {e}")
+            return b'NO'
+
+    def handle_usrs(self, data, payload):
+        if not data.count(b'~') == 1:
+            return b'NO'
+        users = self.db.get_all_users()
+        return b'OK' + pickle.dumps(users)
+
     def get_playlist(self,dict):
         print('getting playlist', dict)
         pid = dict['id']
@@ -475,7 +497,8 @@ class StopifyServer:
                    "DLPL": self.handle_dlpl, "USTH": self.handle_usth, "SSIS": self.handle_ssis,
                    "USSS": self.handle_usss, "FOLW": self.handle_folw, "UNFL": self.handle_unfl,
                    "FLWS": self.handle_flws, "PRFL": self.handle_prfl, "RSFP": self.handle_rsfp}
-        admin_actions = {"UPLS": self.handle_upls, "UPLA": self.handle_upla, "GETA": self.handle_geta}
+        admin_actions = {"UPLS": self.handle_upls, "UPLA": self.handle_upla, "GETA": self.handle_geta,
+                         "WRPD": self.handle_wrpd, "USRS": self.handle_usrs}
         if cmd in actions:
             response = actions[cmd](data, payload)
         elif cmd in admin_actions and self.db.is_admin(payload['user']):

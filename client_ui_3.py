@@ -321,8 +321,24 @@ class AudioClientApp(ctk.CTk):
             album_cover_label.image = album_cover  # Keep a reference to avoid garbage collection
             album_cover_label.grid(row=row, column=1, padx=5, pady=5)
 
+    def _update_admin_users(self, users):
+        for widget in self.users_frame.winfo_children():
+            widget.destroy()
+
+        for row, (id, name) in enumerate(users):
+            user_label = ctk.CTkLabel(self.users_frame, text=f"{id} - {name}", text_color=self.prime_text)
+            user_label.grid(row=row, column=0, padx=5, pady=5)
+
     def _on_get_albums(self):
         self.loading_screen(self.controller.get_albums, self._update_admin_albums)
+
+    def _on_get_users(self):
+        self.loading_screen(self.controller.get_users, self._update_admin_users)
+
+    def _on_send_wrapped(self):
+        y = lambda: self.controller.send_wrapped(self.send_user_id_entry.get(), self.send_start_date_entry.get(), self.send_end_date_entry.get())
+        self.loading_screen(y)
+
 
     def _build_admin_tab(self, parent):
         # --- Upload Song Section ---
@@ -384,12 +400,45 @@ class AudioClientApp(ctk.CTk):
         self.albums_frame = tk.Frame(list_frame, height=6)
         self.albums_frame.grid(row=1, column=0, sticky="nsew")
 
+        # --- Get Users Section ---
+        list_frame = tk.LabelFrame(self.admin_frame, text="Available Users", padx=10, pady=10)
+        list_frame.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
+
+        tk.Button(list_frame, text="Refresh List", command=self._on_get_users).grid(row=0, column=0, sticky="w")
+        self.users_frame = tk.Frame(list_frame, height=6)
+        self.users_frame.grid(row=1, column=0, sticky="nsew")
+
         # make columns expand
         self.grid_columnconfigure(0, weight=1)
         song_frame.grid_columnconfigure(1, weight=1)
         album_frame.grid_columnconfigure(1, weight=1)
         list_frame.grid_rowconfigure(1, weight=1)
         list_frame.grid_columnconfigure(0, weight=1)
+
+        # --- Send Wrapped Section ---
+        send_frame = tk.LabelFrame(self.admin_frame, text="Send Wrapped", padx=10, pady=10)
+        send_frame.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
+
+        tk.Label(send_frame, text="User ID:").grid(row=0, column=0, sticky="e")
+        self.send_user_id_entry = tk.Entry(send_frame)
+        self.send_user_id_entry.grid(row=0, column=1, sticky="we")
+
+        tk.Label(send_frame, text="Start Date (YYYY-MM-DD):").grid(row=1, column=0, sticky="e")
+        self.send_start_date_entry = tk.Entry(send_frame)
+        self.send_start_date_entry.grid(row=1, column=1, sticky="we")
+
+        tk.Label(send_frame, text="End Date (YYYY-MM-DD):").grid(row=2, column=0, sticky="e")
+        self.send_end_date_entry = tk.Entry(send_frame)
+        self.send_end_date_entry.grid(row=2, column=1, sticky="we")
+
+        tk.Button(
+            send_frame,
+            text="Send Wrapped",
+            command=self._on_send_wrapped
+        ).grid(row=3, column=0, columnspan=2, pady=5)
+
+        # allow the entry column to stretch
+        send_frame.grid_columnconfigure(1, weight=1)
 
     def _choose_song_file(self):
         path = filedialog.askopenfilename(

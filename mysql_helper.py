@@ -2,8 +2,8 @@ from operator import length_hint
 import bcrypt
 import mysql.connector
 from ogg_handler import get_ogg_duration, get_sample_rate, count_ogg_pages
-from datetime import datetime
-
+from datetime import datetime, timedelta, date
+import pandas as pd
 
 class DBController:
     """
@@ -676,6 +676,109 @@ class DBController:
         cursor.close()
         return exists > 0
 
+    def get_mail_by_id(self, user_id):
+        cursor = self.conn.cursor()
+        query = "SELECT email FROM `user` WHERE id = %s"
+        cursor.execute(query, (user_id,))
+        email = cursor.fetchone()[0]
+        cursor.close()
+        return email
+
+    def total_listening_minutes(self, user_id, start_dt, end_dt):
+        sql = """
+            SELECT IFNULL(SUM(duration),0)/60
+              FROM mydb.user_segments
+             WHERE user_id=%s
+               AND time BETWEEN %s AND %s
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(sql, (user_id, start_dt, end_dt))
+        (mins,) = cursor.fetchone()
+        cursor.close()
+        return mins
+
+    def top_songs(self, user_id, start_dt, end_dt, top_n=5):
+        sql = """
+            SELECT s.id, s.name, s.author,
+                   SUM(us.duration)/60 AS total_duration
+              FROM mydb.user_segments us
+              JOIN mydb.songs s ON us.songs_id = s.id
+             WHERE us.user_id=%s
+               AND us.time BETWEEN %s AND %s
+             GROUP BY s.id, s.name, s.author
+             ORDER BY total_duration DESC
+             LIMIT %s
+        """
+        cursor = self.conn.cursor(dictionary=True)
+        cursor.execute(sql, (user_id, start_dt, end_dt, top_n))
+        results = cursor.fetchall()
+        cursor.close()
+        return results  # list of dicts: { 'id', 'name', 'author', 'total_duration' }
+
+    def top_artists(self, user_id, start_dt, end_dt, top_n=5):
+        sql = """
+            SELECT s.author AS artist_name,
+                   SUM(us.duration)/60 AS total_duration
+              FROM mydb.user_segments us
+              JOIN mydb.songs s ON us.songs_id = s.id
+             WHERE us.user_id=%s
+               AND us.time BETWEEN %s AND %s
+             GROUP BY s.author
+             ORDER BY total_duration DESC
+             LIMIT %s
+        """
+        cursor = self.conn.cursor(dictionary=True)
+        cursor.execute(sql, (user_id, start_dt, end_dt, top_n))
+        results = cursor.fetchall()
+        cursor.close()
+        return results  # list of dicts: { 'artist_name', 'total_duration' }
+
+    def peak_listening_days(self, user_id, start_dt, end_dt, top_n=5):
+        sql = """
+            SELECT DATE(us.time) AS day,
+                   SUM(us.duration)/60 AS total_duration
+              FROM mydb.user_segments us
+             WHERE us.user_id=%s
+               AND us.time BETWEEN %s AND %s
+             GROUP BY day
+             ORDER BY total_duration DESC
+             LIMIT %s
+        """
+        cursor = self.conn.cursor(dictionary=True)
+        cursor.execute(sql, (user_id, start_dt, end_dt, top_n))
+        results = cursor.fetchall()
+        cursor.close()
+        # convert day from date to ISO string
+        for row in results:
+            row['day'] = row['day'].isoformat()
+        return results
+
+    def longest_listening_streak(self, user_id, start_dt, end_dt):
+        # 1. fetch all distinct listening dates
+        sql = """
+            SELECT DISTINCT DATE(time) AS d
+              FROM mydb.user_segments
+             WHERE user_id=%s
+               AND time BETWEEN %s AND %s
+             ORDER BY d
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(sql, (user_id, start_dt, end_dt))
+        dates = [row[0] for row in cursor.fetchall()]  # list of datetime.date
+        cursor.close()
+
+        if not dates:
+            return 0
+
+        max_streak = curr_streak = 1
+        for prev, curr in zip(dates, dates[1:]):
+            if curr - prev == timedelta(days=1):
+                curr_streak += 1
+            else:
+                max_streak = max(max_streak, curr_streak)
+                curr_streak = 1
+        return max(max_streak, curr_streak)
+
     def close(self):
         self.conn.close()
 
@@ -696,6 +799,7 @@ if __name__ == '__main__':
     print(db.is_admin(1))
     print(db.get_albums_ids_names())
 
+    print(db.get_all_users())
     """user_id = 10
 
     # Create a new playlist for the user.

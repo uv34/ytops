@@ -236,6 +236,21 @@ class PlaybackController:
             return songs, playlists
         return [], []
 
+    def send_wrapped(self, id, start_dt, end_dt):
+        cmd, data = self.send_recv("WRPD", f"{id}~{start_dt}~{end_dt}")
+        if cmd == "WRPD":
+            print("Fetched wrapped")
+            self.messagebox_callback("Wrapped", f'sent wrpped for user {id} - {data}')
+
+    def get_users(self):
+        cmd, data = self.send_recv("USRS", "")
+        if cmd == "USRS":
+            if data[:2].decode() == "OK":
+                users = pickle.loads(data[2:])
+                print("Fetched users")
+                return users
+        return []
+
     def upload_song(self, song_file, song_name, song_author, album_id):
         with open(song_file, "rb") as song_f:
             song_data = song_f.read()
