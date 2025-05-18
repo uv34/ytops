@@ -351,7 +351,6 @@ class DBController:
     def add_user(self, username, plain_password, email, verify_token, expiry):
         cursor = self.conn.cursor()
 
-        # 1) Check if user already exists
         cursor.execute("SELECT COUNT(*) FROM `user` WHERE username = %s OR email = %s", (username, email))
         if cursor.fetchone()[0] > 0:
             return -1, '0'

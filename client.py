@@ -309,8 +309,11 @@ class PlaybackController:
         self.pause_disable_callback()
         self.stream_thread = None
         self.client = None
-        self.gen_socket.send(protocol.create_msg("EXIT", self.token.encode(), self.key))
-        self.gen_socket.shutdown(socket.SHUT_RDWR)
+        try:
+            self.gen_socket.send(protocol.create_msg("EXIT", self.token.encode(), self.key))
+            self.gen_socket.shutdown(socket.SHUT_RDWR)
+        except OSError as e:
+            print(f"Socket error during shutdown: {e}")
         try:
             self.gen_socket.unwrap()  # Attempt to send SSL closure alert
             print("General socket unwrapped")

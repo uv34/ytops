@@ -21,6 +21,7 @@ import recommendations
 from encryption import CryptoManager
 from MailManager import Mail
 import admin_stuff
+import checker
 
 SECRET_KEY = 'very‑strong‑secret-key'
 THRESHOLD = 5
@@ -65,10 +66,24 @@ class StopifyServer:
         print(f'{direction} {client_id}: {message}')
 
     def check_creds_regi(self, data):
-        return data.count(b'~') == 2 and len(data) > 0
+        if not data.count(b'~') == 2:
+            return False
+        if not checker.check_username(data.split(b'~')[0].decode()):
+            return False
+        if not checker.check_email(data.split(b'~')[1].decode()):
+            return False
+        if not checker.check_password(data.split(b'~')[2].decode()):
+            return False
+        return True
 
     def check_creds_logi(self, data):
-        return data.count(b'~') == 1 and len(data) > 0
+        if not data.count(b'~') == 1:
+            return False
+        if not checker.check_username(data.split(b'~')[0].decode()):
+            return False
+        if not checker.check_password(data.split(b'~')[1].decode()):
+            return False
+        return True
 
     def login_user(self, username, hashed_password):
         id, status = self.db.login_user(username, hashed_password)
@@ -132,7 +147,7 @@ class StopifyServer:
 
     def handle_login(self, data, client_socket):
         if not self.check_creds_logi(data):
-            return False, b'contains invalid characters'
+            return False, b'contains invalid characters~' + b'###'
         username, hashed_password = data.decode().split('~')
         id, status = self.login_user(username, hashed_password)
         if status != '0':
@@ -222,8 +237,11 @@ class StopifyServer:
         img_io_bytes = io.BytesIO(image_bytes)
         if not (image_bytes.startswith(b'\xff\xd8') and image_bytes.endswith(b'\xff\xd9')):
             return b'NO'
+        if len(image_bytes) > 2 * 1024 * 1024:  #2MB
+            return b'NO'
         playlist_id = self.db.create_playlist(user_id, name.decode())
         img = Image.open(img_io_bytes)
+        img = img.convert("RGB")
         img_resized = img.resize((64, 64))
 
         output_stream = io.BytesIO()

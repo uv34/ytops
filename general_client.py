@@ -8,7 +8,7 @@ import client_ui_3
 from encryption import CryptoManager
 import base64
 import ssl
-
+import checker
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
 
@@ -141,6 +141,12 @@ class LoginRegisterWindow(tk.Tk):
             return
         if not self.connect():
             return
+        if not checker.check_username(username):
+            messagebox.showwarning("Input Error", "Invalid username.")
+            return
+        if not checker.check_password(password):
+            messagebox.showwarning("Input Error", "Invalid password.")
+            return
         threading.Thread(target=self.handle_login, args=(f"{username}~{password}".encode(), username), daemon=True).start()
 
     def handle_login(self, data, username):
@@ -166,6 +172,15 @@ class LoginRegisterWindow(tk.Tk):
             messagebox.showwarning("Input Error", "Please fill all fields.")
             return
         if not self.connect():
+            return
+        if not checker.check_username(username):
+            messagebox.showwarning("Input Error", "Invalid username.")
+            return
+        if not checker.check_password(password):
+            messagebox.showwarning("Input Error", "Invalid password.")
+            return
+        if not checker.check_email(email):
+            messagebox.showwarning("Input Error", "Invalid email.")
             return
         threading.Thread(target=self.handle_register, args=(f"{username}~{email}~{password}".encode(), username), daemon=True).start()
 

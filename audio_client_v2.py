@@ -66,7 +66,7 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
     pygame.mixer.quit()
 
 class AudioClient:
-    def __init__(self, host='192.168.1.20', port=5000, chunk_size=8192):
+    def __init__(self, host='127.0.0.1', port=5000, chunk_size=8192):
         self.host = host
         self.port = port
         self.chunk_size = chunk_size
