@@ -1,0 +1,13 @@
+bcrypt
+cryptography
+customtkinter
+google-genai
+jwt
+librosa
+mysql-connector-python
+numpy
+pygame
+pyogg
+scikit-learn
+tensorflow
+Pillow

@@ -1,8 +1,5 @@
 import numpy as np
 import librosa
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
 import librosa.display
 import pandas as pd
 import os

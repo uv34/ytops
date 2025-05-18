@@ -3,7 +3,6 @@ import bcrypt
 import mysql.connector
 from ogg_handler import get_ogg_duration, get_sample_rate, count_ogg_pages
 from datetime import datetime, timedelta, date
-import pandas as pd
 
 class DBController:
     """
