@@ -30,7 +30,7 @@ def closest_index(sorted_list, target):
 
 def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, played_time, time_update_queue, total_duration, seek_flag, pause_enqueuing):
     def pcm_chunk_to_sound(pcm):
-        samples = np.frombuffer(pcm, dtype=np.int16)
+        samples = np.frombuffer(pcm, dtype=np.int16).copy()
         samples = samples.reshape(-1, 2)
         return sndarray.make_sound(samples)
     pygame.mixer.init(frequency=sample_rate, size=-16, channels=2)

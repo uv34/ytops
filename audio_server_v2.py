@@ -79,7 +79,7 @@ class OggServer:
                 print(f"Connection from {addr}")
                 self.stop_events[ssl_conn] = threading.Event()
                 threading.Thread(target=self.handle_client, args=(ssl_conn,), daemon=True).start()
-            except ssl.SSLError as e:
+            except ssl.SSLError or ConnectionError as e :
                 print(f"SSL error: {e}")
                 conn.close()
 

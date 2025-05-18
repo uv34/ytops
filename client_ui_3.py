@@ -32,6 +32,7 @@ class AudioClientApp(ctk.CTk):
         self.second_text = "#A0A0A0"
         self.configure(fg_color=self.background)
         self.status = status
+        self.play_cooldown_ms = 500
 
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -678,8 +679,13 @@ class AudioClientApp(ctk.CTk):
             label_title.grid(row=1, column=0)
 
             for widget in (song_frame, label_title, label_image):
-                widget.bind("<Button-1>", self.controller.click_song_frame)
+                widget.bind("<Button-1>", self._click_song)
                 widget.bind("<Button-3>", self.show_song_action_menu)
+
+    def _click_song(self, event):
+        self.controller.play_song(event.widget.song)
+        event.widget.unbind("<Button-1>")
+        self.after(self.play_cooldown_ms, lambda: event.widget.bind("<Button-1>", self._click_song))
 
     def display_playlists_horizontaly(self, playlists, inner_frame):
         self.controller.playlists = playlists
