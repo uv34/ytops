@@ -170,6 +170,10 @@ class FollowFrame(BaseFrame):
         super().__init__(parent, width=300, height=350)
 
     def create_widgets(self):
+        self.title = tk.Label(self.frame, text="Follow User", font=("Arial", 14, "bold"),
+                              fg="white", bg="#1e1e1e")
+        self.title.place(relx=0.5, y=20, anchor="n")
+
         self.title_entry = ctk.CTkEntry(self.frame, font=("Arial", 12), placeholder_text="Jon Doe",
                                         fg_color="#2e2e2e", text_color="white")
         self.title_entry.place(relx=0.5, y=100, anchor="n", relwidth=0.8)
