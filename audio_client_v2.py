@@ -390,8 +390,11 @@ class AudioClient:
         print('not playing and queue cleared', self.audio_queue.qsize())
         if not self.done_flag.is_set():
             if self.sock:
-                self.sock.sendall(protocol.create_msg("STOP", b"1"))
-                print('sent stop')
+                try:
+                    self.sock.sendall(protocol.create_msg("STOP", b"1"))
+                    print('sent stop')
+                except Exception as e:
+                    print(f"Error sending STOP command: {e}")
         else:
             print('already finished receiving')
 

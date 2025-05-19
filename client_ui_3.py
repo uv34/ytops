@@ -32,7 +32,9 @@ class AudioClientApp(ctk.CTk):
         self.second_text = "#A0A0A0"
         self.configure(fg_color=self.background)
         self.status = status
-        self.play_cooldown_ms = 500
+
+        self.play_cooldown_ms = 1000
+        self.can_click_song = True
 
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -683,10 +685,17 @@ class AudioClientApp(ctk.CTk):
                 widget.bind("<Button-3>", self.show_song_action_menu)
 
     def _click_song(self, event):
+        if not self.can_click_song:
+            return
+        self.can_click_song = False
         self.controller.play_song(event.widget.song)
-        event.widget.unbind("<Button-1>")
-        self.after(self.play_cooldown_ms, lambda: event.widget.bind("<Button-1>", self._click_song))
 
+        self.after(self.play_cooldown_ms, lambda: setattr(self, 'can_click_song', True))
+
+
+    def _bind_all_children(self):
+        for child in self.canvas.winfo_children():
+            child.bind("<Button-1>", self._click_song)
     def display_playlists_horizontaly(self, playlists, inner_frame):
         self.controller.playlists = playlists
         print('displaying playlists', playlists)
