@@ -207,6 +207,10 @@ class PlaylistInfoFrame(BaseFrame):
         self.song_images = []
         super().__init__(parent, width=300, height=350)
 
+    def _play(self, playlist):
+        self.parent.controller.play_playlist(playlist)
+        self.destroy()
+
     def create_widgets(self):
         # Cover Image
         frame = tk.Frame(self.frame, bg="#1e1e1e", highlightthickness=2, highlightbackground="#666666",
@@ -221,7 +225,7 @@ class PlaylistInfoFrame(BaseFrame):
         tk.Label(self.frame, text=self.playlist.name, bg="#1e1e1e", fg="white",
                  font=("Arial", 12, "bold")).place(relx=0.5, y=130, anchor="n", width=260)
         tk.Button(self.frame, text="play", bg="#3e3e3e", fg="white", width=10,
-                  command=lambda: self.parent.controller.play_playlist(self.playlist)).place(relx=0.5, y=160, anchor="n")
+                  command=lambda: self._play(self.playlist)).place(relx=0.5, y=160, anchor="n")
 
         # Songs list with scrollbar
         canvas = tk.Canvas(self.frame, bg="#2e2e2e", highlightthickness=0)
