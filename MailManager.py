@@ -10,7 +10,6 @@ class Mail:
         self.sender = 'stopify5169@gmail.com'
         self.PASSWORD = 'iprb kdok mulc ilce'
 
-
     def send(self):
         msg = MIMEText(self.html_body, 'html')
         msg['Subject'] = self.subject
@@ -25,10 +24,3 @@ class Mail:
 if __name__ == "__main__":
     mmail = Mail('omer', 'swimmer', 'uvlevy100@gmail.com')
     mmail.send()
-
-
-
-
-
-
-

@@ -1,18 +1,19 @@
-import socket
-import subprocess
-import sys
-import threading
-import queue
-import multiprocessing
-import pygame
-import numpy as np
-from pygame import sndarray
-import protocol
-import pickle
 import base64
-from encryption import CryptoManager
-import time
+import multiprocessing
+import pickle
+import queue
+import socket
 import ssl
+import subprocess
+import threading
+
+import numpy as np
+import pygame
+from pygame import sndarray
+
+import protocol
+from encryption import CryptoManager
+
 
 def closest_index(sorted_list, target):
     if not sorted_list:
@@ -28,32 +29,35 @@ def closest_index(sorted_list, target):
             break
     return closest_idx
 
-def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, played_time, time_update_queue, total_duration, seek_flag, pause_enqueuing):
+
+def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, played_time, time_update_queue,
+                          total_duration, seek_flag, pause_enqueuing):
     def pcm_chunk_to_sound(pcm):
         samples = np.frombuffer(pcm, dtype=np.int16).copy()
         samples = samples.reshape(-1, 2)
         return sndarray.make_sound(samples)
+
     pygame.mixer.init(frequency=sample_rate, size=-16, channels=2)
     while True:
-        #print('playback process running')
+        # print('playback process running')
         if done_flag.is_set() and audio_queue.empty() and not pause_enqueuing.is_set() and audio_queue.qsize() == 0:
             print('playback process done 1', done_flag.is_set(), audio_queue.empty(), pause_enqueuing.is_set())
             break
         if not playing.value:
-            #print('not playing')
+            # print('not playing')
             pygame.time.Clock().tick(50)
             continue
         try:
             item = audio_queue.get(timeout=0.1)
             i, duration_s, pcm = item
         except queue.Empty:
-            #print('queue empty')
+            # print('queue empty')
             continue
         sound = pcm_chunk_to_sound(pcm)
         sound.set_volume(volume.value)
         sound.play()
         while pygame.mixer.get_busy():
-            #print('playing')
+            # print('playing')
             if seek_flag.is_set():
                 pygame.mixer.stop()
                 break
@@ -64,6 +68,7 @@ def playback_process_func(audio_queue, done_flag, playing, volume, sample_rate, 
 
     print('playback process done')
     pygame.mixer.quit()
+
 
 class AudioClient:
     def __init__(self, host='127.0.0.1', port=5000, chunk_size=8192):
@@ -131,7 +136,7 @@ class AudioClient:
         shared_key = cryp.shared_secret(pub_a)
         shared_key = cryp.hash_secret(shared_key)
         self.key = shared_key
-        print(shared_key, '_'*100)
+        print(shared_key, '_' * 100)
         print(f'{self.sock} is asking for {song_id} in {t}')
         msg = protocol.create_msg("RQST", req_str.encode())
         self.sock.sendall(msg)
@@ -187,7 +192,8 @@ class AudioClient:
         reader_t.start()
         self.playback_p = multiprocessing.Process(
             target=playback_process_func,
-            args=(self.audio_queue, self.done_flag, self.playing, self.volume, self.sample_rate, self.played_time, self.time_update_queue, self.total_duration, self.seek_flag, self.pause_enqueuing),
+            args=(self.audio_queue, self.done_flag, self.playing, self.volume, self.sample_rate, self.played_time,
+                  self.time_update_queue, self.total_duration, self.seek_flag, self.pause_enqueuing),
             daemon=True
         )
         self.playback_p.start()
@@ -365,7 +371,6 @@ class AudioClient:
             print("   cache cleared")
             self.stop(True)
         self.seek_flag.clear()
-
 
         print("=== SEEK finished ===\n")
 

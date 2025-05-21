@@ -1,8 +1,6 @@
 import pickle
-import sys
-import threading
-import ssl
 import socket
+import ssl
 
 import protocol
 from audio_client_v2 import AudioClient
@@ -108,7 +106,6 @@ class PlaybackController:
             self.song_queue.next()
 
             self.start_stream(self.song_queue.current_song.song_id)
-
 
     def _wait_for_stop(self):
         if self.stream_thread and self.stream_thread.is_alive():
@@ -219,7 +216,6 @@ class PlaybackController:
             social_profile = pickle.loads(data)
             return social_profile
         return {}
-
 
     def fetch_recommendations(self):
         cmd, data = self.send_recv("RECM", "")
@@ -394,7 +390,8 @@ class PlaybackController:
                 if self.song_queue.current_song and self.active:
                     listened_segment = PlaybackSegment(self.song_queue.current_song.song_id, self.started_playing_time
                                                        , self.played_time, self.total_time)
-                    msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)), self.key)
+                    msg = protocol.create_msg("USTH", (self.token.encode() + b'~' + pickle.dumps(listened_segment)),
+                                              self.key)
                     self.gen_socket.send(msg)
                     self.history_segments.append(listened_segment)
                     self.start_after_stop(self.song_queue.current_song.song_id)

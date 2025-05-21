@@ -1,8 +1,8 @@
 import os
-import sys
-import zipfile
-import urllib.request
 import subprocess
+import sys
+import urllib.request
+import zipfile
 
 # Constants
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.0.2-essentials_build.zip"  # Your provided URL
@@ -10,6 +10,7 @@ DEST_ROOT = r"C:\ffmpeg_full"
 TEMP_ARCHIVE = "ffmpeg_full.zip"  # Temporary location for the downloaded zip file
 APP_URL = 'https://localhost/user_files.zip'
 APP_ARCHIVE = 'user_files.zip'
+
 
 def is_ffmpeg_available():
     """Check if ffmpeg is available in the system PATH"""
@@ -147,6 +148,7 @@ def main():
             print("       You may need to add it manually.")
 
     download_with_progress(APP_URL, APP_ARCHIVE)
+
 
 if __name__ == "__main__":
     main()

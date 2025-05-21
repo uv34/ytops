@@ -1,24 +1,26 @@
-import socket
-import threading
-import os
-import ssl
 import mimetypes
-from urllib.parse import urlparse, parse_qs
-import mysql_helper
-from datetime import datetime, timedelta
+import os
 import secrets
+import socket
+import ssl
+import threading
+from datetime import datetime, timedelta
+from urllib.parse import urlparse, parse_qs
+
+import mysql_helper
 from MailManager import Mail
 
 HOST = '0.0.0.0'  # Listen on all interfaces
-PORT = 443       # Port to listen on
+PORT = 443  # Port to listen on
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'webroot/')
 print(BASE_DIR)
 CERT_FILE = os.path.join(BASE_DIR, 'cert.pem')
 KEY_FILE = os.path.join(BASE_DIR, 'key.pem')
 db = mysql_helper.DBController(
-            host="192.168.1.20", user="stopify", password="stop123", database="mydb"
-        )
+    host="192.168.1.20", user="stopify", password="stop123", database="mydb"
+)
 print(CERT_FILE)
+
 
 def parse_query(path: str) -> dict:
     """
@@ -29,6 +31,7 @@ def parse_query(path: str) -> dict:
     # Split off any fragment, then parse out query
     parsed = urlparse(path)
     return parse_qs(parsed.query)
+
 
 def send_400(client_conn, message: str):
     """
@@ -44,6 +47,7 @@ def send_400(client_conn, message: str):
     ]
     response = '\r\n'.join(headers).encode('utf-8') + body
     client_conn.sendall(response)
+
 
 def send_html(client_conn, status_code: int, html: str):
     """
@@ -64,6 +68,7 @@ def send_html(client_conn, status_code: int, html: str):
     ]
     response = '\r\n'.join(headers).encode('utf-8') + body
     client_conn.sendall(response)
+
 
 def handle_client(client_conn, client_addr):
     with client_conn:

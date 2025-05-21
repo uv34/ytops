@@ -1,16 +1,20 @@
+import base64
+import random
 from datetime import datetime
 from math import exp, log
-from sklearn.metrics.pairwise import cosine_similarity
+
 import numpy as np
-import random
-import base64
+from sklearn.metrics.pairwise import cosine_similarity
+
 from song import Song
+
 
 def vectorize_profile(profile):
     """
     Convert a profile dictionary into a numpy vector using a fixed feature order.
     """
     return np.array(list(profile.values())[:-2]).reshape(1, -1)
+
 
 def vectorize_song(profile):
     """
@@ -217,6 +221,7 @@ class Recommender:
             cover_b64 = base64.b64encode(cover_data)
             songs.append(Song(i, song['name'], song['author'], album['name'], cover_b64))
         return songs[:num_recommendations]
+
 
 if __name__ == '__main__':
     # Example usage:

@@ -1,13 +1,14 @@
 import os
-import sys
 import pickle
-import numpy as np
-import pandas as pd
+import sys
+
 import librosa
 import librosa.display
+import numpy as np
+import pandas as pd
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import InputLayer, Conv2D, MaxPooling2D, Flatten, Dense
+from tensorflow.keras.models import Sequential
 
 # --------------------------
 # Path Variables
@@ -17,6 +18,7 @@ ECHONEST_CSV = r'C:\Users\uv\Downloads\fma_metadata\fma_metadata\echonest.csv'  
 NEW_SONG_PATH = r'songs/4.ogg'  # Test song path
 FIXED_FRAMES = 130  # Fixed time frames for each spectrogram
 
+
 # --------------------------
 # Data Preparation Functions
 # --------------------------
@@ -24,6 +26,7 @@ def get_audio_path(track_id, audio_dir=AUDIO_DIR):
     track_id_str = str(track_id).zfill(6)
     folder = track_id_str[:3]
     return os.path.join(audio_dir, folder, track_id_str + '.mp3')
+
 
 def song_to_spectrograms(file_path, segment_duration=15, sr=22050,
                          n_fft=2048, hop_length=512, n_mels=128, fixed_frames=FIXED_FRAMES):
@@ -43,7 +46,7 @@ def song_to_spectrograms(file_path, segment_duration=15, sr=22050,
         S_dB = librosa.power_to_db(S, ref=np.max)
         if S_dB.shape[1] < fixed_frames:
             pad_width = fixed_frames - S_dB.shape[1]
-            S_dB = np.pad(S_dB, ((0,0), (0, pad_width)), mode='constant')
+            S_dB = np.pad(S_dB, ((0, 0), (0, pad_width)), mode='constant')
         else:
             S_dB = S_dB[:, :fixed_frames]
         S_norm = (S_dB - S_dB.min()) / (S_dB.max() - S_dB.min())
@@ -60,7 +63,7 @@ def song_to_spectrograms(file_path, segment_duration=15, sr=22050,
         S_dB = librosa.power_to_db(S, ref=np.max)
         if S_dB.shape[1] < fixed_frames:
             pad_width = fixed_frames - S_dB.shape[1]
-            S_dB = np.pad(S_dB, ((0,0), (0, pad_width)), mode='constant')
+            S_dB = np.pad(S_dB, ((0, 0), (0, pad_width)), mode='constant')
         else:
             S_dB = S_dB[:, :fixed_frames]
         S_norm = (S_dB - S_dB.min()) / (S_dB.max() - S_dB.min())
@@ -97,6 +100,7 @@ def prepare_training_data(features_df, audio_dir, num_tracks=100,
     if len(X) == 0:
         return np.array([]), np.array([])
     return np.array(X), np.array(Y)
+
 
 # --------------------------
 # Build TensorFlow Model

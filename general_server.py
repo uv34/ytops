@@ -152,6 +152,7 @@ class StopifyServer:
         id, status = self.login_user(username, hashed_password)
         if status != '0':
             self.client_users[client_socket] = User(id, username, status, self.db.is_verified(id))
+            print('client users', self.client_users)
             token = generate_token(id)
             print(f'token generated: {token}')
             print('user status', status)
@@ -169,6 +170,7 @@ class StopifyServer:
         id, status = self.register_user(username, email, hashed_password, token, expiry)
         if status != '0':
             self.client_users[client_socket] = User(id, username, status, False)
+            print('client users', self.client_users)
             html = """<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -601,6 +603,7 @@ class StopifyServer:
         finally:
             client_socket.close()  # Clean up after shutdown
             del self.client_users[client_socket]
+            print('client users', self.client_users)
             self.threads.remove(threading.current_thread())
 
     def run(self):
@@ -625,6 +628,7 @@ class StopifyServer:
                 t.start()
                 self.threads.append(t)
                 i += 1
+
             except ssl.SSLError or ConnectionResetError as e:
                 print('failed to connect with ssl: ', e)
 

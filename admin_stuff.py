@@ -1,9 +1,12 @@
-from PIL import Image
-from ogg_handler import *
-import mysql_helper
 import os
-import network_with_tensor
+
+from PIL import Image
 from google import genai
+
+import mysql_helper
+import network_with_tensor
+from ogg_handler import *
+
 
 def create_album(db, album_cover_path, name, author):
     """
@@ -41,6 +44,7 @@ def create_song(db, song_file, song_name, song_author, album_id):
     pred = network_with_tensor.load_model_and_calc(song_file)
     db.create_song_profile(song_id, pred)
 
+
 def extract_all(db, user_id, start_dt, end_dt, top_n=5):
     return {
         'total_minutes': db.total_listening_minutes(user_id, start_dt, end_dt),
@@ -49,6 +53,7 @@ def extract_all(db, user_id, start_dt, end_dt, top_n=5):
         'peak_days': db.peak_listening_days(user_id, start_dt, end_dt, top_n),
         'longest_streak': db.longest_listening_streak(user_id, start_dt, end_dt),
     }
+
 
 def generate_wrapped(db, user_id, start_dt, end_dt):
     print('context')
@@ -73,6 +78,7 @@ def generate_wrapped(db, user_id, start_dt, end_dt):
     response = client.models.generate_content(
         model="gemini-2.0-flash", contents=prompt
     )
+
     return response.text
 
 
@@ -80,7 +86,7 @@ if __name__ == '__main__':
     db = mysql_helper.DBController(
         host="192.168.1.20", user="stopify", password="stop123", database="mydb"
     )
-    generate_wrapped(db, user_id=1, start_dt='2024-01-01', end_dt='2026-12-31')
+    print(generate_wrapped(db, user_id=1, start_dt='2024-01-01', end_dt='2026-12-31'))
     r"""album_id = create_album(db, r"C:\Users\uv\Downloads\GunsnRosesAppetiteforDestructionalbumcover.jpg", "Appetite for Destruction", "Guns N' Roses")
     create_song(db, r"C:\Users\uv\Downloads\Guns N' Roses - Sweet Child O' Mine (Lyrics).ogg", "Sweet Child O Mine", "Guns N' Roses", album_id)
     create_song(db, r"C:\Users\uv\Downloads\Guns N' Roses - Welcome To The Jungle.ogg", "Welcome To The Jungle", "Guns N' Roses", album_id)

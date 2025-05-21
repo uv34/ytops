@@ -1,14 +1,17 @@
+import base64
 import socket
+import ssl
 import threading
 import tkinter as tk
-import customtkinter as ctk
 from tkinter import messagebox
-import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
-import client_ui_3
-from encryption import CryptoManager
-import base64
-import ssl
+
+import customtkinter as ctk
+
 import checker
+import client_ui_3
+import protocol  # assuming protocol has create_msg, get_msg, and PORT defined
+from encryption import CryptoManager
+
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5001
 
@@ -69,7 +72,6 @@ class LoginRegisterWindow(tk.Tk):
             text_color=self.prime_text, command=self.login)
         login_btn.pack(side="left", expand=True, padx=(0, 5))
 
-
     def build_register_tab(self):
         pad_y = 12
         # Username
@@ -101,7 +103,6 @@ class LoginRegisterWindow(tk.Tk):
             fg_color=self.primary_ui, hover_color=self.success,
             text_color=self.prime_text, command=self.register)
         register_btn.pack(side="left", expand=True, padx=(0, 5))
-
 
     def connect(self):
         if self.client_socket is None:
@@ -147,7 +148,8 @@ class LoginRegisterWindow(tk.Tk):
         if not checker.check_password(password):
             messagebox.showwarning("Input Error", "Invalid password.")
             return
-        threading.Thread(target=self.handle_login, args=(f"{username}~{password}".encode(), username), daemon=True).start()
+        threading.Thread(target=self.handle_login, args=(f"{username}~{password}".encode(), username),
+                         daemon=True).start()
 
     def handle_login(self, data, username):
         try:
@@ -182,7 +184,8 @@ class LoginRegisterWindow(tk.Tk):
         if not checker.check_email(email):
             messagebox.showwarning("Input Error", "Invalid email.")
             return
-        threading.Thread(target=self.handle_register, args=(f"{username}~{email}~{password}".encode(), username), daemon=True).start()
+        threading.Thread(target=self.handle_register, args=(f"{username}~{email}~{password}".encode(), username),
+                         daemon=True).start()
 
     def handle_register(self, data, username):
         try:
@@ -197,6 +200,7 @@ class LoginRegisterWindow(tk.Tk):
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Error", f"Error during registration: {e}"))
 
+
 class MainWindow(tk.Tk):
     def __init__(self, username):
         super().__init__()
@@ -204,10 +208,12 @@ class MainWindow(tk.Tk):
         tk.Label(self, text=f"Hello, {username}!").pack(padx=20, pady=20)
         tk.Button(self, text="Exit", command=self.quit).pack(pady=5)
 
+
 def run_login_register_window():
     app = LoginRegisterWindow()
     app.mainloop()
     return app.login_success, app.logged_in_username, app.token, app.client_socket, app.key, app.status
+
 
 def main():
     success, user, token, sock, key, status = run_login_register_window()

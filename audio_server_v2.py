@@ -1,16 +1,15 @@
 import base64
 import pickle
 import socket
+import ssl
 import threading
 import time
-import ssl
 
-import encryption
 import protocol
+from encryption import CryptoManager
 from general_server import verify_token
 from mysql_helper import DBController
 from ogg_handler import *
-from encryption import CryptoManager
 
 CHUNK_SIZE = 8192
 DELAY = 0.1  # artificial delay
@@ -57,7 +56,8 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb", autocommit=True)
+        self.db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb",
+                               autocommit=True)
         self.stop_events = {}
 
     def start_server(self):
@@ -79,7 +79,7 @@ class OggServer:
                 print(f"Connection from {addr}")
                 self.stop_events[ssl_conn] = threading.Event()
                 threading.Thread(target=self.handle_client, args=(ssl_conn,), daemon=True).start()
-            except ssl.SSLError or ConnectionError as e :
+            except ssl.SSLError or ConnectionError as e:
                 print(f"SSL error: {e}")
                 conn.close()
 
@@ -101,7 +101,7 @@ class OggServer:
         pub_b = int(base64.b64decode(data).decode())
         shared_key = cryp.shared_secret(pub_b)
         shared_key = cryp.hash_secret(shared_key)
-        print(shared_key, '_'*100)
+        print(shared_key, '_' * 100)
 
         stop_event = self.stop_events[conn]
         # 1) Read request
@@ -153,9 +153,9 @@ class OggServer:
         album = self.db.get_album(song['album_id'])
         page_num = closest_index(times, asked_time)
         current_time = get_time_until_page(filepath, page_num)
-        print(f"-"*50)
+        print(f"-" * 50)
         print(f"asked_time={asked_time}, duration={duration}")
-        print(f"-"*50)
+        print(f"-" * 50)
         if asked_time >= duration or times[page_num] >= duration:
             print("Requested time out of range")
             err_msg = b"Requested time out of range"
@@ -236,7 +236,7 @@ class OggServer:
 
                     page_data = buffer[:page_size]
                     if not self.stop_events[conn].is_set():
-                        conn.sendall(protocol.create_msg("PAGE", page_data,key))
+                        conn.sendall(protocol.create_msg("PAGE", page_data, key))
                     buffer = buffer[page_size:]
 
                     time.sleep(DELAY)

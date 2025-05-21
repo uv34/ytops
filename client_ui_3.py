@@ -1,18 +1,15 @@
-import socket
-import threading
-import tkinter
-from tkinter import messagebox
-import customtkinter as ctk
-from tkinter import TclError
-import ssl
-import sys
 import os
+import socket
+import ssl
+from tkinter import messagebox
+import base64
 
+import general_client
 import protocol
 from client import PlaybackController
 from custom_widgets import *
-import general_client
 from encryption import CryptoManager
+
 
 def time_str(time: float) -> str:
     return f"{int(time / 60)}:{str(int(time) % 60).zfill(2)}"
@@ -45,7 +42,8 @@ class AudioClientApp(ctk.CTk):
                                              , self.draw_slider_callback, self.update_playlists, self.update_when_follow
                                              , key, self.messagebox_callback)
 
-        self.song_info_label = ctk.CTkLabel(self, text="song name\n author", text_color=self.prime_text, font=("Nunito", 12))
+        self.song_info_label = ctk.CTkLabel(self, text="song name\n author", text_color=self.prime_text,
+                                            font=("Nunito", 12))
         self.song_info_label.grid(row=0, rowspan=2, column=1, columnspan=3, sticky='ew', padx=5, pady=5)
 
         pil_img = Image.open("default.jpg")
@@ -79,23 +77,23 @@ class AudioClientApp(ctk.CTk):
         self.volume_button = ctk.CTkButton(self, text="🔊", width=10,
                                            fg_color=self.background, text_color=self.prime_text, font=("Nunito", 12)
                                            , hover_color=self.primary_ui)
-        self.volume_button.grid(row=4, column=0, sticky='e', padx=5,)
+        self.volume_button.grid(row=4, column=0, sticky='e', padx=5, )
         self.volume_popup = VolumePopup(self.volume_button, self)
         self.volume_button.configure(command=self.volume_popup.show)
 
         self.prev_button = ctk.CTkButton(self, text="⏮", command=self.controller.prev_button, width=15, height=40,
-                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
-                                           , hover_color=self.primary_ui)
+                                         fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
+                                         , hover_color=self.primary_ui)
         self.prev_button.grid(row=4, column=1, sticky='e', padx=5)
 
         self.pause_button = ctk.CTkButton(self, text="⏸︎", command=self.pause, state=ctk.DISABLED, width=15, height=40,
-                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
-                                           , hover_color=self.primary_ui, text_color_disabled=self.second_text)
+                                          fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
+                                          , hover_color=self.primary_ui, text_color_disabled=self.second_text)
         self.pause_button.grid(row=4, column=2, sticky='', padx=5)
 
         self.start_button = ctk.CTkButton(self, text="⏭", command=self.controller.start_button, width=15, height=40,
-                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
-                                           , hover_color=self.primary_ui)
+                                          fg_color=self.background, text_color=self.prime_text, font=("Nunito", 16)
+                                          , hover_color=self.primary_ui)
         self.start_button.grid(row=4, column=3, sticky='w', padx=5)
 
         self.toggle_button = ctk.CTkButton(self, text="☰", command=self.toggle_middle_frame, width=10,
@@ -120,7 +118,8 @@ class AudioClientApp(ctk.CTk):
         print('destroy')
 
     def make_middle_frame(self):
-        self.tab_view = ctk.CTkTabview(self, width=380, height=350, fg_color=self.background, command=self.on_tab_change)
+        self.tab_view = ctk.CTkTabview(self, width=380, height=350, fg_color=self.background,
+                                       command=self.on_tab_change)
         self.tab_view.grid(row=2, column=0, sticky="ew", padx=5, pady=5, columnspan=6)
         self.tab_view.add('songs')
         self.tab_view.tab('songs').configure(fg_color=self.tab_view.cget("fg_color"))
@@ -150,29 +149,29 @@ class AudioClientApp(ctk.CTk):
 
     def _build_songs_tab(self, parent):
         self.search_frame = ctk.CTkFrame(parent,
-                                    corner_radius=8,
-                                    fg_color=("gray70", "gray30"),
-                                    height=32)
+                                         corner_radius=8,
+                                         fg_color=("gray70", "gray30"),
+                                         height=32)
 
         self.search_frame.grid(row=0, column=0, sticky="e", padx=10, pady=5)
         self.search_entry = ctk.CTkEntry(self.search_frame,
-                                  border_width=0,
-                                  fg_color="transparent",
-                                  placeholder_text="Type and press Enter…")
+                                         border_width=0,
+                                         fg_color="transparent",
+                                         placeholder_text="Type and press Enter…")
         self.search_entry.pack(side="left", fill="both", expand=True, padx=(8, 0))
         self.search_entry.bind("<Return>", self.search_songs)
 
         self.refresh_button = ctk.CTkButton(parent, text="↺", command=self._refresh, width=20,
-                                           fg_color=self.background, text_color=self.prime_text, font=("Nunito", 24)
-                                           , hover_color=self.primary_ui)
+                                            fg_color=self.background, text_color=self.prime_text, font=("Nunito", 24)
+                                            , hover_color=self.primary_ui)
         self.refresh_button.grid(row=0, column=1, sticky="e")
         # the icon-button on the right
         self.icon_btn = ctk.CTkButton(self.search_frame,
-                                 text="🔍",
-                                 width=32, height=32,
-                                 fg_color="transparent",
-                                 hover_color=("gray80", "gray40"),
-                                 command=lambda: self.search_songs(None))
+                                      text="🔍",
+                                      width=32, height=32,
+                                      fg_color="transparent",
+                                      hover_color=("gray80", "gray40"),
+                                      command=lambda: self.search_songs(None))
         self.icon_btn.pack(side="right", padx=4)
 
         self.recommendations_label = ctk.CTkLabel(
@@ -250,7 +249,7 @@ class AudioClientApp(ctk.CTk):
 
     def _build_queue_tab(self, parent):
         self.queue_frame = ctk.CTkScrollableFrame(parent, height=350, width=354, orientation="vertical"
-                                                   , fg_color=parent.cget("fg_color"))
+                                                  , fg_color=parent.cget("fg_color"))
         self.queue_frame.covers = []
         self.queue_frame.grid(row=0, column=0, sticky="e", pady=10, columnspan=2)
 
@@ -303,12 +302,14 @@ class AudioClientApp(ctk.CTk):
             widget.bind("<Button-1>", self._display_soc)
 
     def _on_upload_song(self):
-        y = lambda: self.controller.upload_song(self.song_file, self.song_name_entry.get(), self.song_author_entry.get(),
-                                    self.album_id_entry.get())
+        y = lambda: self.controller.upload_song(self.song_file, self.song_name_entry.get(),
+                                                self.song_author_entry.get(),
+                                                self.album_id_entry.get())
         self.loading_screen(y)
 
     def _on_upload_album(self):
-        y = lambda: self.controller.upload_album(self.album_name_entry.get(), self.album_author_entry.get(), self.cover_file)
+        y = lambda: self.controller.upload_album(self.album_name_entry.get(), self.album_author_entry.get(),
+                                                 self.cover_file)
         self.loading_screen(y)
 
     def _update_admin_albums(self, albums):
@@ -339,9 +340,9 @@ class AudioClientApp(ctk.CTk):
         self.loading_screen(self.controller.get_users, self._update_admin_users)
 
     def _on_send_wrapped(self):
-        y = lambda: self.controller.send_wrapped(self.send_user_id_entry.get(), self.send_start_date_entry.get(), self.send_end_date_entry.get())
+        y = lambda: self.controller.send_wrapped(self.send_user_id_entry.get(), self.send_start_date_entry.get(),
+                                                 self.send_end_date_entry.get())
         self.loading_screen(y)
-
 
     def _build_admin_tab(self, parent):
         # --- Upload Song Section ---
@@ -509,6 +510,7 @@ class AudioClientApp(ctk.CTk):
             x, y = root.winfo_rootx(), root.winfo_rooty()
             w, h = root.winfo_width(), root.winfo_height()
             overlay.geometry(f"{w}x{h}+{x}+{y}")
+
         sync()
         root.bind('<Configure>', sync)  # whenever root moves/resizes
 
@@ -526,6 +528,7 @@ class AudioClientApp(ctk.CTk):
                     spinner.stop()
                     overlay.destroy()
                     SocialFrame(self, profile)
+
                 self.after(0, on_done)
 
         threading.Thread(target=get_profile, daemon=True).start()
@@ -575,7 +578,6 @@ class AudioClientApp(ctk.CTk):
         )
         self.logout_button.pack(side="right")
 
-
         self.following_frame = ctk.CTkFrame(
             self.social_canvas,
             fg_color=self.cget("fg_color"),
@@ -586,14 +588,13 @@ class AudioClientApp(ctk.CTk):
         self.follow_button = ctk.CTkButton(
             self.social_canvas,
             text="Follow Someone New",
-            command= lambda: FollowFrame(self),
+            command=lambda: FollowFrame(self),
             fg_color=self.background,
             text_color=self.prime_text,
             font=("Nunito", 12),
             hover_color=self.primary_ui
         )
         self.follow_button.pack(pady=15, anchor="center")
-
 
     def logout(self):
         self.controller.logout()
@@ -692,10 +693,10 @@ class AudioClientApp(ctk.CTk):
 
         self.after(self.play_cooldown_ms, lambda: setattr(self, 'can_click_song', True))
 
-
     def _bind_all_children(self):
         for child in self.canvas.winfo_children():
             child.bind("<Button-1>", self._click_song)
+
     def display_playlists_horizontaly(self, playlists, inner_frame):
         self.controller.playlists = playlists
         print('displaying playlists', playlists)
@@ -889,8 +890,6 @@ class AudioClientApp(ctk.CTk):
 
     def messagebox_callback(self, title, message):
         self.after(0, lambda: messagebox.showinfo(title, message))
-
-
 
 
 if __name__ == "__main__":

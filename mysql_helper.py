@@ -1,8 +1,8 @@
-from operator import length_hint
+from datetime import datetime, timedelta
+
 import bcrypt
 import mysql.connector
-from ogg_handler import get_ogg_duration, get_sample_rate, count_ogg_pages
-from datetime import datetime, timedelta, date
+
 
 class DBController:
     """
@@ -309,7 +309,9 @@ class DBController:
             INSERT INTO songs_profile (songs_id, acoustic, dance, energy, instrument, live, speech)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(query, (song_id, float(profile[0]), float(profile[1]), float(profile[2]), float(profile[3]), float(profile[4]), float(profile[5])))
+        cursor.execute(query, (
+        song_id, float(profile[0]), float(profile[1]), float(profile[2]), float(profile[3]), float(profile[4]),
+        float(profile[5])))
         self.conn.commit()
         cursor.close()
 
@@ -424,7 +426,6 @@ class DBController:
         segments = cursor.fetchall()
         cursor.close()
         return segments
-
 
     def mark_segments_used(self, user_id, n):
         """
@@ -563,7 +564,7 @@ class DBController:
 
     def get_last_10_songs(self, username):
         cursor = self.conn.cursor(dictionary=True)
-        query="""
+        query = """
             SELECT
               s.*,
               latest.last_time
@@ -872,4 +873,3 @@ if __name__ == '__main__':
     # Print all tables and their contents.
 
     db.close()
-
