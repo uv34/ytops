@@ -27,7 +27,8 @@ SECRET_KEY = 'very‑strong‑secret-key'
 THRESHOLD = 5
 
 def generate_token(user_id):
-    payload = {"user": user_id}
+    payload = {"user": user_id,
+               "expiration": int(time.time()) + 3600}
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 
@@ -35,6 +36,9 @@ def verify_token(token):
     try:
         print('checking token', token)
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        if payload['expiration'] < int(time.time()):
+            print('token expired')
+            return False
         print('checked token', payload)
         return payload
     except Exception as e:
@@ -58,7 +62,7 @@ class StopifyServer:
         self.client_users = {}
         self.threads = []
         self.db = mysql_helper.DBController(
-            host="192.168.1.20", user="stopify", password="stop123", database="mydb", autocommit=True
+            host="192.168.1.8", user="stopify", password="stop123", database="mydb", autocommit=True
         )
         self.recommender = recommendations.Recommender(self.db)
 
@@ -528,6 +532,19 @@ class StopifyServer:
 
         return response
 
+    def update_token(self, client_socket, shared_key):
+        cmd, data = self.recv_msg(client_socket, shared_key)
+        if cmd != 'TOKN':
+            return b'NO'
+        if not data.count(b'~') == 1:
+            return b'NO'
+        username, password = data.decode().split('~')
+        id, status = self.db.login_user(username, password)
+        token = generate_token(id) if status != '0' else '###'
+        return token.encode()
+
+
+
     def handle_client(self, client_socket, client_id, addr):
         cryp = CryptoManager()
         msg = protocol.create_msg("SHKY", base64.b64encode(str(cryp.public_key).encode()))
@@ -591,7 +608,11 @@ class StopifyServer:
                     self.send_msg(client_socket, 'VERF', b'not verified', shared_key)
             else:
                 print('invalid token')
-                self.send_msg(client_socket, 'ERR ', b'invalid token', shared_key)
+                self.send_msg(client_socket, 'TOKN', b'invalid token', shared_key)
+                print('generating new token')
+                token = self.update_token(client_socket, shared_key)
+                self.send_msg(client_socket, 'TOKN', token, shared_key)
+                print('sent new token', token)
             """except Exception as e:
                 print(f'Error: {e}')
                 break"""

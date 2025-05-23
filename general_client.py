@@ -23,6 +23,7 @@ class LoginRegisterWindow(tk.Tk):
         self.client_socket = None
         self.login_success = False
         self.logged_in_username = None
+        self.logged_in_password = None
         self.token = '###'
         self.key = b''
         self.status = None
@@ -148,17 +149,17 @@ class LoginRegisterWindow(tk.Tk):
         if not checker.check_password(password):
             messagebox.showwarning("Input Error", "Invalid password.")
             return
-        threading.Thread(target=self.handle_login, args=(f"{username}~{password}".encode(), username),
+        threading.Thread(target=self.handle_login, args=(f"{username}~{password}".encode(), username, password),
                          daemon=True).start()
 
-    def handle_login(self, data, username):
+    def handle_login(self, data, username, password):
         try:
             cmd, resp = self.send_receive("LOGI", data)
             response, token = resp.split('~')
             if "successful" in response.lower():
                 status = response[-5:]
                 print('status', status)
-                self.login_success, self.logged_in_username, self.token, self.status = True, username, token, status
+                self.login_success, self.logged_in_username, self.token, self.status, self.logged_in_password = True, username, token, status, password
                 self.after(0, lambda: messagebox.showinfo("Login", response))
                 self.after(0, self.destroy1)
             else:
@@ -184,15 +185,15 @@ class LoginRegisterWindow(tk.Tk):
         if not checker.check_email(email):
             messagebox.showwarning("Input Error", "Invalid email.")
             return
-        threading.Thread(target=self.handle_register, args=(f"{username}~{email}~{password}".encode(), username),
+        threading.Thread(target=self.handle_register, args=(f"{username}~{email}~{password}".encode(), username, password),
                          daemon=True).start()
 
-    def handle_register(self, data, username):
+    def handle_register(self, data, username, password):
         try:
             cmd, resp = self.send_receive("REGI", data)
             response, token = resp.split('~')
             if "successful" in response.lower():
-                self.login_success, self.logged_in_username, self.token, self.status = True, username, token, False
+                self.login_success, self.logged_in_username, self.token, self.status, self.logged_in_password = True, username, token, False, password
                 self.after(0, lambda: messagebox.showinfo("Registration", response))
                 self.after(0, self.destroy1)
             else:
@@ -212,15 +213,15 @@ class MainWindow(tk.Tk):
 def run_login_register_window():
     app = LoginRegisterWindow()
     app.mainloop()
-    return app.login_success, app.logged_in_username, app.token, app.client_socket, app.key, app.status
+    return app.login_success, app.logged_in_username, app.token, app.client_socket, app.key, app.status, app.logged_in_password
 
 
 def main():
-    success, user, token, sock, key, status = run_login_register_window()
+    success, user, token, sock, key, status, password = run_login_register_window()
     if success and user:
         tk._default_root = None
-        print(token)
-        app = client_ui_3.AudioClientApp(token, sock, user, key, status)
+        print(token, user, password)
+        app = client_ui_3.AudioClientApp(token, sock, user, key, status, password)
         app.mainloop()
         app.controller.exit()
 

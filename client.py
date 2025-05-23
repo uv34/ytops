@@ -11,7 +11,7 @@ from song import *
 class PlaybackController:
     def __init__(self, gen_sock, token, pause_disable_callback, pause_enable_callback, on_playback_callback
                  , update_song_callback, update_cover_callback, update_slider_callback, update_playlist_callback
-                 , add_user_callback, key, messagebox_callback):
+                 , add_user_callback, key, messagebox_callback, username, password):
         self.token = token
         self.gen_socket = gen_sock
         self.client = None
@@ -25,6 +25,9 @@ class PlaybackController:
         self._send_lock = threading.Lock()
         self.stream_lock = threading.Lock()
         self.active = True
+
+        self.username = username
+        self.password = password
 
         # -=+ Callbacks +=-
         self.pause_enable_callback = pause_enable_callback
@@ -61,15 +64,32 @@ class PlaybackController:
             self.start_after_stop(self.song_queue.current_song.song_id)
 
     #  -=- functionality -=-
+    def update_token(self):
+        self.gen_socket.send(protocol.create_msg("TOKN", f'{self.username}~{self.password}'.encode(), self.key))
+        cmd, data = protocol.get_msg(self.gen_socket, self.key)
+        print('update token2', cmd, data)
+        if cmd == 'TOKN':
+            self.token = data.decode()
+        else:
+            self.token = '###'
 
-    def send_recv(self, cmd: str, msg: str):
+    def send_recv(self, og_cmd: str, msg_data: str):
         with self._send_lock:
-            msg = protocol.create_msg(cmd, f"{self.token}~{msg}".encode(), self.key)
+            msg = protocol.create_msg(og_cmd, f"{self.token}~{msg_data}".encode(), self.key)
             self.gen_socket.send(msg)
             cmd, data = protocol.get_msg(self.gen_socket, self.key)
             if cmd == 'VERF':
                 self.update_status('verify', 'needs to verify - check your mail')
+            if cmd == 'TOKN':
+                print('update token', cmd, data)
+                self.update_token()
+                new_msg = protocol.create_msg(og_cmd, f"{self.token}~{msg_data}".encode(), self.key)
+                print('updated token, sending msg ', f"{og_cmd}{self.token}~{msg_data}".encode())
+                self.gen_socket.send(new_msg)
+                cmd, data = protocol.get_msg(self.gen_socket, self.key)
+                print('final data', data)
             return cmd, data
+
 
     def logout(self):
         self.active = False

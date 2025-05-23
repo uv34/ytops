@@ -16,7 +16,7 @@ def time_str(time: float) -> str:
 
 
 class AudioClientApp(ctk.CTk):
-    def __init__(self, token, gen_sock, username, key, status):
+    def __init__(self, token, gen_sock, username, key, status, password):
         super().__init__()
         self.title("Muniz Player sigmaboii123")
         self.geometry("400x160")
@@ -40,7 +40,7 @@ class AudioClientApp(ctk.CTk):
         self.controller = PlaybackController(gen_sock, token, self.disable_pause_button, self.enable_pause_button
                                              , self.on_playback_time, self.update_song_label, self.update_cover
                                              , self.draw_slider_callback, self.update_playlists, self.update_when_follow
-                                             , key, self.messagebox_callback)
+                                             , key, self.messagebox_callback, username, password)
 
         self.song_info_label = ctk.CTkLabel(self, text="song name\n author", text_color=self.prime_text,
                                             font=("Nunito", 12))
@@ -915,7 +915,7 @@ if __name__ == "__main__":
     gen_sock.send(protocol.create_msg('LOGI', data, key))
     cmd, resp = protocol.get_msg(gen_sock, key)
     response, token = resp.decode().split('~')
-    app = AudioClientApp(token, gen_sock, '1', key, 'admin')
+    app = AudioClientApp(token, gen_sock, '1', key, 'admin', '1')
     app.mainloop()
     print('mainloop')
     os._exit(0)
