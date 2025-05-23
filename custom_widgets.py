@@ -3,6 +3,7 @@ import math
 import threading
 import tkinter as tk
 from tkinter import filedialog
+import base64
 
 import customtkinter as ctk
 from PIL import Image, ImageTk

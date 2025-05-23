@@ -601,10 +601,10 @@ class AudioClientApp(ctk.CTk):
         super().destroy()
 
         # now show the login/register dialog
-        success, user, token, sock, key, status = general_client.run_login_register_window()
+        success, user, token, sock, key, status, password = general_client.run_login_register_window()
         tk._default_root = None
         if user and success:
-            AudioClientApp(token, sock, user, key, status).mainloop()
+            AudioClientApp(token, sock, user, key, status, password).mainloop()
 
     def search_songs(self, event):
         search_term = self.search_entry.get()
