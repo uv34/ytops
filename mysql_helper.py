@@ -784,7 +784,7 @@ class DBController:
 
 # Example usage:
 if __name__ == '__main__':
-    db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb")
+    db = DBController(host="192.168.1.14", user="stopify", password="stop123", database="mydb")
 
     print("\nPrinting all tables:")
     db.print_tables()
@@ -798,7 +798,9 @@ if __name__ == '__main__':
     print(db.is_admin(1))
     print(db.get_albums_ids_names())
 
-    print(db.get_all_users())
+    # print(db.get_all_users())
+    # print('-------------------------------------------------------------------------')
+    # print(db.get_all_song_profiles())
     """user_id = 10
 
     # Create a new playlist for the user.

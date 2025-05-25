@@ -17,29 +17,24 @@ DELAY = 0.1  # artificial delay
 
 def closest_index(sorted_list, target):
     """
-    Finds the index of the closest number to the target in a sorted list.
+    Find the index of the element in a sorted list closest to a target value.
 
-    Parameters:
-    sorted_list (list[float]): A list of floats sorted in ascending order.
-    target (float): The number to find the closest value to.
-
-    Returns:
-    int: The index of the closest number.
+    :param sorted_list: A sorted list of numbers (e.g., timestamps).
+    :param target: The value to find the closest match for.
+    :return: Index of the closest element.
+    :raises ValueError: If the list is empty.
     """
     if not sorted_list:
         raise ValueError("The list is empty")
-
     closest_idx = 0
     min_diff = abs(sorted_list[0] - target)
-
     for i in range(1, len(sorted_list)):
         diff = abs(sorted_list[i] - target)
         if diff < min_diff:
             min_diff = diff
             closest_idx = i
-        elif diff > min_diff:
+        elif diff > min_diff:  # Early exit since list is sorted
             break
-
     return closest_idx
 
 
@@ -56,7 +51,7 @@ class OggServer:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
         self.port = port
-        self.db = DBController(host="192.168.1.20", user="stopify", password="stop123", database="mydb",
+        self.db = DBController(host="192.168.1.14", user="stopify", password="stop123", database="mydb",
                                autocommit=True)
         self.stop_events = {}
 
@@ -171,7 +166,7 @@ class OggServer:
         pgnm_data = (f"{song['name']}~{song['author']}~{album['name']}~{total_pages}~{duration}~{current_time}~"
                      f"{sample_rate}~{real_page}|").encode() + pickle.dumps(times) + b"|" + base64.b64encode(cover_data)
 
-        conn.sendall(protocol.create_msg("PGNM", pgnm_data))
+        conn.sendall(protocol.create_msg("PGNM", pgnm_data, shared_key))
         print(f"Sent PGNM: {total_pages} pages, {duration} sec")
 
         # 6) Decide how to stream:

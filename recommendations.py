@@ -1,49 +1,71 @@
-import base64
-import random
-from datetime import datetime
-from math import exp, log
+import base64  # Used for encoding album cover images
+import random  # Used to add randomness to recommendation scores
+from datetime import datetime  # Used for timestamp calculations
+from math import exp, log  # Used for exponential decay calculations
 
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np  # Used for vector operations and numerical computations
+from sklearn.metrics.pairwise import cosine_similarity  # Used to compute similarity between user and song profiles
 
-from song import Song
-
+from song import Song  # Custom class representing a song with attributes like ID, name, and cover
 
 def vectorize_profile(profile):
     """
-    Convert a profile dictionary into a numpy vector using a fixed feature order.
+    Convert a user profile dictionary into a numpy vector for similarity calculations.
+
+    Excludes the last two elements (assumed to be non-feature data like weight or timestamp).
+
+    :param profile: Dictionary containing user profile features (e.g., acousticness, danceability).
+    :return: Numpy array representing the profile as a 1D vector.
     """
     return np.array(list(profile.values())[:-2]).reshape(1, -1)
 
-
 def vectorize_song(profile):
     """
-    Convert a profile dictionary into a numpy vector using a fixed feature order.
+    Convert a song profile dictionary into a numpy vector for similarity calculations.
+
+    Excludes the first element (assumed to be the song ID).
+
+    :param profile: Dictionary containing song profile features (e.g., acousticness, danceability).
+    :return: Numpy array representing the song profile as a 1D vector.
     """
     return np.array(list(profile.values())[1:]).reshape(1, -1)
 
-
 class Recommender:
+    """
+    A music recommendation system based on user listening history and song features.
+
+    Uses a half-life decay model to weight playback segments and computes recommendations
+    using cosine similarity between user and song profiles.
+
+    Attributes:
+        db: Database controller object for accessing user profiles, song profiles, and metadata.
+    """
+
     def __init__(self, db):
+        """
+        Initialize the recommender with a database connection.
+
+        :param db: Database controller object (e.g., mysql_helper.DBController).
+        """
         self.db = db
 
     def create_profile(self, user_id, segments, T_HALF):
         """
-        Calculate the weighted user profile from playback segments using a half-life-based decay.
+        Create a weighted user profile from playback segments using exponential decay.
 
-        Args:
-            segments (list of PlaybackSegment)
-            T_HALF (float): Desired half-life in seconds (e.g., one week ≈ 604800 seconds).
+        Weights segments based on their age, with more recent listens contributing more
+        to the profile. The decay rate is determined by the half-life (T_HALF).
 
-        Returns:
-            dict or None: Weighted average profile of the user.
+        :param user_id: ID of the user.
+        :param segments: List of PlaybackSegment objects, each with song_id, duration, and timestamp.
+        :param T_HALF: Half-life in seconds for decay (e.g., 604800 for one week).
+        :return: Tuple (user_profile, total_weight) or None if no valid segments.
         """
-        # Calculate lambda for the decay based on desired half-life.
+        # Calculate decay constant (lambda) based on half-life
         lambda_decay = log(2) / T_HALF
-
         current_time = datetime.now()
 
-        # Initialize aggregated feature sums.
+        # Initialize feature accumulators
         aggregated_features = {
             "acousticness": 0.0,
             "danceability": 0.0,
@@ -54,6 +76,7 @@ class Recommender:
         }
         total_weight = 0.0
 
+        # Process each playback segment
         for seg in segments:
             song_id = seg.song_id
             duration = seg.duration
@@ -63,45 +86,45 @@ class Recommender:
                 print(f"Skipping segment with invalid timestamp: {seg.timestamp}")
                 continue
 
+            # Calculate weight using exponential decay based on time difference
             delta_seconds = (current_time - seg_time).total_seconds()
             weight = duration * exp(-lambda_decay * delta_seconds)
             total_weight += weight
 
-            features = db.get_song_profile(song_id)
+            # Retrieve song features from the database
+            features = self.db.get_song_profile(song_id)
             if not features:
                 print(f"Song features for {song_id} not found. Skipping segment.")
                 continue
 
+            # Accumulate weighted feature contributions
             for key in aggregated_features:
                 aggregated_features[key] += weight * features.get(key, 0.0)
 
         if total_weight == 0:
             return None
 
+        # Compute weighted average for each feature
         user_profile = {key: aggregated_features[key] / total_weight for key in aggregated_features}
-        db.update_user_profile(user_id, user_profile, total_weight)
+        # Save the profile to the database
+        self.db.update_user_profile(user_id, user_profile, total_weight)
         return user_profile, total_weight
 
     def aggregate_segments(self, segments, T_HALF):
         """
-        Aggregate new segments into a weighted sum of feature values and a total weight.
+        Aggregate playback segments into a weighted sum of features.
 
-        Args:
-            segments (list of dict): Each segment has:
-                - "song_id": str, identifier of the song.
-                - "duration": float, seconds listened.
-                - "timestamp": str, ISO formatted timestamp.
-            T_HALF (float): Desired half-life in seconds.
+        Computes the sum of feature values weighted by duration and decayed by time,
+        along with the total weight of all segments.
 
-        Returns:
-            tuple: (weighted_feature_sum, total_weight)
-                weighted_feature_sum is a dict with summed (weight * feature)
-                total_weight is the sum of all segment weights.
+        :param segments: List of PlaybackSegment objects with song_id, duration, and timestamp.
+        :param T_HALF: Half-life in seconds for decay (e.g., 604800 for one week).
+        :return: Tuple (weighted_feature_sum, total_weight).
         """
         lambda_decay = log(2) / T_HALF
         current_time = datetime.now()
 
-        # Initialize the accumulator for each feature.
+        # Initialize feature accumulators
         weighted_sum = {
             "acoustic": 0.0,
             "dance": 0.0,
@@ -112,6 +135,7 @@ class Recommender:
         }
         total_weight = 0.0
 
+        # Process each segment
         for seg in segments:
             song_id = seg.song_id
             duration = seg.duration
@@ -121,17 +145,17 @@ class Recommender:
                 print(f"Skipping segment with invalid timestamp: {seg.timestamp}")
                 continue
 
-            # Calculate the time difference in seconds and the weight for this segment.
+            # Calculate weight using exponential decay
             delta_seconds = (current_time - seg_time).total_seconds()
             weight = duration * exp(-lambda_decay * delta_seconds)
             total_weight += weight
 
+            # Retrieve song features and add weighted contributions
             features = self.db.get_song_profile(song_id)
             if not features:
                 print(f"Song features for {song_id} not found. Skipping segment.")
                 continue
 
-            # For each feature, add weight * feature value.
             for key in weighted_sum:
                 weighted_sum[key] += weight * features[key]
 
@@ -140,46 +164,62 @@ class Recommender:
     def update_user_profile(self, user_id, new_segments, T_HALF=604800):
         """
         Update an existing user profile with new playback segments.
+
+        Applies decay to the existing profile based on time elapsed since the last update,
+        then combines it with the new segments' contributions.
+
+        :param user_id: ID of the user.
+        :param new_segments: List of new PlaybackSegment objects.
+        :param T_HALF: Half-life in seconds for decay (default: 604800, one week).
+        :return: Tuple (updated_profile, combined_weight, current_time).
         """
+        # Retrieve current user profile
         result = self.db.get_user_profile(user_id)
         existing_weight = result['weight']
         del result['weight']
         last_update = result['last_updated']
         del result['last_updated']
         existing_profile = result
+
+        # Calculate decay factor for elapsed time
         lambda_decay = log(2) / T_HALF
         current_time = datetime.now()
-        # Compute decay factor for the time elapsed since last update.
         delta_time = (current_time - last_update).total_seconds()
         decay_factor = exp(-lambda_decay * delta_time)
 
-        # Decay the existing total weight and calculate the decayed weighted sum.
+        # Decay existing profile weight and feature sums
         decayed_weight = existing_weight * decay_factor
-        # The decayed weighted sum is simply the profile multiplied by the decayed weight.
         decayed_profile_sum = {key: existing_profile.get(key, 0.0) * decayed_weight
-                               for key in existing_profile}
+                              for key in existing_profile}
 
-        # Aggregate the new segments.
+        # Aggregate new segments
         new_profile_sum, new_total_weight = self.aggregate_segments(new_segments, T_HALF)
 
-        # Combine the two weighted sums and weights.
+        # Combine decayed and new contributions
         combined_weight = decayed_weight + new_total_weight
         if combined_weight == 0:
             return existing_profile, existing_weight, last_update
 
-        # Sum the feature contributions.
+        # Compute updated profile as weighted average
         combined_profile_sum = {}
         for key in decayed_profile_sum:
             combined_profile_sum[key] = decayed_profile_sum[key] + new_profile_sum.get(key, 0.0)
 
-        # Compute the updated profile as the weighted average.
         updated_profile = {key: combined_profile_sum[key] / combined_weight for key in combined_profile_sum}
-
         return updated_profile, combined_weight, current_time
 
     def recommend(self, user_id, num_recommendations=10):
-        # Retrieve the user's current profile.
-        # Assume this returns a tuple like (profile_dict, cumulative_weight, last_update)
+        """
+        Generate song recommendations for a user based on their profile.
+
+        Computes cosine similarity between the user profile and all song profiles,
+        adds slight randomness to encourage exploration, and returns the top songs.
+
+        :param user_id: ID of the user.
+        :param num_recommendations: Number of songs to recommend (default: 10).
+        :return: List of Song objects representing the recommended songs.
+        """
+        # Retrieve user profile
         result = self.db.get_user_profile(user_id)
         if not result:
             print("User profile not found. Please ensure the profile is created.")
@@ -190,39 +230,37 @@ class Recommender:
         user_vector = vectorize_profile(user_profile)
         print(f"User profile: {user_vector}")
 
-        # Retrieve all song profiles from the database.
-        # Assume this returns a dictionary mapping song IDs to a dictionary of feature values.
+        # Retrieve all song profiles
         all_song_profiles = self.db.get_all_song_profiles()
         all_song_profiles = {profile['songs_id']: vectorize_song(profile) for profile in all_song_profiles}
         if not all_song_profiles:
             print("No song profiles found in the database.")
             return []
 
+        # Compute cosine similarity for each song
         recommendations = []
         for song_id, song_vector in all_song_profiles.items():
-            # sklearn's cosine_similarity returns a 2D array.
             similarity = cosine_similarity(user_vector, song_vector)[0, 0]
             recommendations.append((song_id, similarity))
 
-        # Add a bit of randomness to the similarity scores for exploration.
+        # Add randomness to similarity scores for exploration
         randomized_recommendations = [
             (song_id, sim * random.uniform(0.95, 1.05)) for song_id, sim in recommendations
         ]
         randomized_recommendations.sort(key=lambda tup: tup[1], reverse=True)
-        recommendations.sort(key=lambda tup: tup[1], reverse=True)
-        print(recommendations)
+
+        # Retrieve song and album details for recommendations
         songs = []
-        for i, _ in randomized_recommendations:
-            print(i)
-            song = self.db.get_song(str(i))
+        for song_id, _ in randomized_recommendations[:num_recommendations]:
+            print(song_id)
+            song = self.db.get_song(str(song_id))
             album = self.db.get_album(song['album_id'])
             with open(f'covers/{album["id"]}.jpg', 'rb') as f:
                 cover_data = f.read()
             cover_b64 = base64.b64encode(cover_data)
-            songs.append(Song(i, song['name'], song['author'], album['name'], cover_b64))
-        return songs[:num_recommendations]
-
+            songs.append(Song(song_id, song['name'], song['author'], album['name'], cover_b64))
+        return songs
 
 if __name__ == '__main__':
-    # Example usage:
+    # Example usage: Initialize database connection
     db = None  # Replace with actual database connection

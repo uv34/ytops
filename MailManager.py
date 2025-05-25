@@ -8,7 +8,7 @@ class Mail:
         self.html_body = body
         self.recipient = recipients
         self.sender = 'stopify5169@gmail.com'
-        self.PASSWORD = 'iprb kdok mulc ilce'
+        self.PASSWORD = 'nrhl ynkg nwmc yins'
 
     def send(self):
         msg = MIMEText(self.html_body, 'html')

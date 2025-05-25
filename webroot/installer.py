@@ -27,7 +27,7 @@ def is_ffmpeg_available():
 
 def download_with_progress(url, dest_path):
     """Download a file from a URL and display progress"""
-    print(f"[INFO] Downloading FFmpeg from:\n       {url}")
+    print(f"[INFO] Downloading {dest_path} from:\n       {url}")
     with urllib.request.urlopen(url) as resp:
         total = resp.getheader("Content-Length")
         if total is None:
