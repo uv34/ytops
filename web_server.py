@@ -17,7 +17,7 @@ print(BASE_DIR)
 CERT_FILE = os.path.join(BASE_DIR, 'cert.pem')
 KEY_FILE = os.path.join(BASE_DIR, 'key.pem')
 db = mysql_helper.DBController(
-    host="192.168.1.14", user="stopify", password="stop123", database="mydb"
+    host="192.168.11.14", user="stopify", password="stop123", database="mydb"
 )
 print(CERT_FILE)
 allowed_paths = [
