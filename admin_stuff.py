@@ -119,9 +119,9 @@ def generate_wrapped(db, user_id, start_dt, end_dt):
     client = genai.Client(api_key=key)
 
     # Define the prompt for the Gemini API to generate the wrapped summary
-    prompt = f"""System: You are Stopify’s “Wrapped” assistant. Your job is to take a user’s listening stats and turn them into a fun, punchy year-end recap.
+    prompt = """System: You are Stopify’s “Wrapped” assistant. Your job is to take a user’s listening stats and turn them into a fun, punchy year-end recap.
 
-            User: Here are my {start_dt}:{end_dt} listening stats: {context}
+            User: Here are my start_dt-""" +str(start_dt) + """: end_dt-""" +str(end_dt) + """ listening stats: """ + str(context) + """
             Generate:
             1. A celebratory paragraph (~150–180 words) that highlights these stats in a lively, “year-in-review” tone.
             2. Three “Did you know?” bullet-point fun facts (e.g. “Did you know you listened more to jazz on Fridays?”).
@@ -130,6 +130,132 @@ def generate_wrapped(db, user_id, start_dt, end_dt):
             Make it upbeat, shareable, and branded as “Stopify Wrapped {start_dt}:{end_dt}”.
 
             Generate it in a styled HTML format
+            
+            EXAMPLE:
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+              <title>Stopify Wrapped 2024-01-01:2026-12-31</title>
+              <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+              <style>
+                /* Base styles */
+                body {
+                  margin: 0;
+                  padding: 0;
+                  background: #f0f4f8;
+                  font-family: 'Montserrat', sans-serif;
+                  color: #333;
+                }
+                .container {
+                  max-width: 800px;
+                  margin: 40px auto;
+                  background: #ffffff;
+                  border-radius: 10px;
+                  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                  overflow: hidden;
+                }
+            
+                /* Header */
+                .header {
+                  background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+                  padding: 30px 20px;
+                  text-align: center;
+                  color: #fff;
+                }
+                .header h2 {
+                  margin: 0;
+                  font-size: 2.5rem;
+                  letter-spacing: 1px;
+                }
+            
+                /* Content area */
+                .content {
+                  padding: 30px 40px;
+                  line-height: 1.6;
+                }
+                .section-title {
+                  font-size: 1.8rem;
+                  margin-bottom: 15px;
+                  color: #2575fc;
+                  border-bottom: 2px solid #2575fc;
+                  padding-bottom: 8px;
+                }
+                p {
+                  margin-bottom: 20px;
+                  font-size: 1rem;
+                  color: #555;
+                }
+                .highlight {
+                  font-weight: 700;
+                  color: #e44d26;
+                }
+            
+                /* Fun Facts list */
+                .fun-facts {
+                  list-style: none;
+                  padding: 0;
+                  margin: 20px 0 0;
+                }
+                .fun-facts li {
+                  background: #f7f9fb;
+                  border-left: 4px solid #2575fc;
+                  padding: 15px 20px;
+                  margin-bottom: 15px;
+                  border-radius: 5px;
+                  font-size: 1rem;
+                  color: #555;
+                }
+                .fun-facts b {
+                  color: #333;
+                }
+            
+                /* Responsive tweaks */
+                @media (max-width: 600px) {
+                  .content {
+                    padding: 20px;
+                  }
+                  .header h2 {
+                    font-size: 2rem;
+                  }
+                  .section-title {
+                    font-size: 1.5rem;
+                  }
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h2>Stopify Wrapped 2024-01-01:2026-12-31</h2>
+                </div>
+            
+                <div class="content">
+                  <h3 class="section-title">Your Year in Review</h3>
+                  <p>
+                    Get ready to relive your sonic journey! Your Stopify Wrapped 
+                    <span class="highlight">2024-01-01:2026-12-31</span> is here, and it's packed with incredible listening moments. 
+                    During this period, you clocked in a whopping <span class="highlight">272.49 minutes</span> of pure audio bliss! 
+                    It's clear you have a soft spot for <span class="highlight">Laufey</span>, who dominated your ears with a staggering 
+                    <span class="highlight">162.45 minutes</span> of playtime—making them your top artist by a landslide. Your anthem of the 
+                    year? None other than <span class="highlight">'I Wish You Love' by Laufey</span>, which resonated with you for an amazing 
+                    <span class="highlight">105.13 minutes</span>! You also showed some love for <span class="highlight">מוניקה סקס</span> and 
+                    <span class="highlight">d4vd</span>. May 8th, 2025 turned out to be your ultimate listening day, where you enjoyed a massive 
+                    <span class="highlight">80.48 minutes</span> of music—plus you maintained an impressive listening streak of 7 days!
+                  </p>
+            
+                  <h3 class="section-title">Fun Facts</h3>
+                  <ul class="fun-facts">
+                    <li><b>Did you know?</b> You spent more time listening to Laufey than the entire runtime of some classic movies! Now that's dedication.</li>
+                    <li><b>Did you know?</b> Your top 5 listening days were all within a single month (April–May 2025).</li>
+                    <li><b>Did you know?</b> 'I Wish You Love' made up a whopping 38% of your total listening time. Sounds like it might be time for a new favorite!</li>
+                  </ul>
+                </div>
+              </div>
+            </body>
+            </html>
+
             """
 
     # Send the prompt to the Gemini API and get the response
